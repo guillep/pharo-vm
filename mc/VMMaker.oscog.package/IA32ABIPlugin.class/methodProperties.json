@@ -29,6 +29,7 @@
 		"primLoadLibrary" : "eem 12/12/2014 15:39",
 		"primMalloc" : "eem 12/12/2014 12:39",
 		"primReturnAsFromContextThrough" : "eem 3/11/2017 14:38",
+		"primReturnAsFromContextThrough2" : "GuillermoPolito 9/14/2017 14:50",
 		"primReturnFromContextThrough" : "eem 6/29/2016 17:29",
 		"primSignedByteAt" : "eem 7/13/2011 10:48",
 		"primSignedByteAtPut" : "eem 12/11/2012 16:20",

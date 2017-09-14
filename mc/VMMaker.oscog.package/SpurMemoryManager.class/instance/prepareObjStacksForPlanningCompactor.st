@@ -9,4 +9,5 @@ prepareObjStacksForPlanningCompactor
 	self
 		prepareObjStackForPlanningCompactor: markStack;
 		prepareObjStackForPlanningCompactor: weaklingStack;
-		prepareObjStackForPlanningCompactor: mournQueue
+		prepareObjStackForPlanningCompactor: mournQueue;
+		prepareObjStackForPlanningCompactor: callbackQueue

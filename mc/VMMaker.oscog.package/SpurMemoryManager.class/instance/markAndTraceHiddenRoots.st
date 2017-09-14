@@ -14,6 +14,7 @@ markAndTraceHiddenRoots
 	self markAndTraceObjStack: markStack andContents: false.
 	self markAndTraceObjStack: weaklingStack andContents: false.
 	self markAndTraceObjStack: mournQueue andContents: true.
+	self markAndTraceObjStack: callbackQueue andContents: true.
 
 	self setIsMarkedOf: self rememberedSetObj to: true.
 	self setIsMarkedOf: self freeListsObj to: true.

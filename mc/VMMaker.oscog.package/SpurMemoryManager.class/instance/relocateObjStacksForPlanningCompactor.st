@@ -4,4 +4,5 @@ relocateObjStacksForPlanningCompactor
 
 	markStack := self relocateObjStackForPlanningCompactor: markStack.
 	weaklingStack := self relocateObjStackForPlanningCompactor: weaklingStack.
-	mournQueue := self relocateObjStackForPlanningCompactor: mournQueue
+	mournQueue := self relocateObjStackForPlanningCompactor: mournQueue.
+	callbackQueue := self relocateObjStackForPlanningCompactor: callbackQueue

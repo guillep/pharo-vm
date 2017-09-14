@@ -94,6 +94,14 @@ checkForEventsMayContextSwitch: mayContextSwitch
 				[switched := true]]].
 
 	"signal any pending finalizations"
+	pendingCallbacks > 0 ifTrue:
+		[pendingCallbacks := 0.
+		 sema := objectMemory splObj: TheCallbackSemaphore.
+		 (sema ~= objectMemory nilObject
+		  and: [self synchronousSignal: sema]) ifTrue:
+			[switched := true]].
+
+	"signal any pending finalizations"
 	pendingFinalizationSignals > 0 ifTrue:
 		[pendingFinalizationSignals := 0.
 		 sema := objectMemory splObj: TheFinalizationSemaphore.

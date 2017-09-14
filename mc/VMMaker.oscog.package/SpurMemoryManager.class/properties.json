@@ -4,6 +4,7 @@
 		 ],
 	"classvars" : [
 		"BitsPerByte",
+		"CallbackQueueRootIndex",
 		"ExtraRootsSize",
 		"FirstValidClassIndex",
 		"MarkObjectsForEnumerationPrimitives",
@@ -95,7 +96,8 @@
 		"statScavengeGCUsecs",
 		"statScavenges",
 		"statShrinkMemory",
-		"statAllocatedBytes" ],
+		"statAllocatedBytes",
+		"callbackQueue" ],
 	"name" : "SpurMemoryManager",
 	"pools" : [
 		"SpurMemoryManagementConstants",

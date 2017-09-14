@@ -36,6 +36,7 @@ initializeObjectMemory: bytesToShift
 	markStack := self swizzleObjStackAt: MarkStackRootIndex.
 	weaklingStack := self swizzleObjStackAt: WeaklingStackRootIndex.
 	mournQueue := self swizzleObjStackAt: MournQueueRootIndex.
+	callbackQueue := self swizzleObjStackAt: CallbackQueueRootIndex.
 	self assert: self validObjStacks.
 	self assert: (self isEmptyObjStack: markStack).
 	self assert: (self isEmptyObjStack: weaklingStack).

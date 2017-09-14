@@ -6,5 +6,6 @@ updateRootOfObjStackAt: objStackRootIndex with: newRootPage
 	objStackRootIndex caseOf: {
 		[MarkStackRootIndex]		->	[markStack := newRootPage].
 		[WeaklingStackRootIndex]	->	[weaklingStack := newRootPage].
-		[MournQueueRootIndex]	->	[mournQueue := newRootPage] }.
+		[MournQueueRootIndex]	   ->	[mournQueue := newRootPage].
+		[CallbackQueueRootIndex] -> [callbackQueue := newRootPage ] }.
 	^newRootPage

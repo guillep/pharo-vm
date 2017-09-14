@@ -33,6 +33,7 @@ initializeSpecialObjectIndices
 	CompactClasses := 28.
 	TheTimerSemaphore := 29.
 	TheInterruptSemaphore := 30.
+	TheCallbackSemaphore := 32.
 	SelectorCannotInterpret := 34.
 	"Was MethodContextProto := 35."
 	ClassBlockClosure := 36.

@@ -147,7 +147,8 @@
 		"statIdleUsecs",
 		"debugCallbackPath",
 		"debugCallbackReturns",
-		"debugCallbackInvokes" ],
+		"debugCallbackInvokes",
+		"pendingCallbacks" ],
 	"name" : "StackInterpreter",
 	"pools" : [
 		"VMBasicConstants",

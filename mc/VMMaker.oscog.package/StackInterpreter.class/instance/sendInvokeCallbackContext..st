@@ -15,31 +15,19 @@ sendInvokeCallbackContext: vmCallbackContext
 	 asserts will fail misleadingly if not."
 	<export: true>
 	<var: #vmCallbackContext type: #'VMCallbackContext *'>
-	| classTag |
-	vmCallbackContext savedPrimFunctionPointer: primitiveFunctionPointer.
-	classTag := self fetchClassTagOfNonImm: (objectMemory splObj: ClassAlien).
-	messageSelector := self splObj: SelectorInvokeCallback.
-	(self lookupInMethodCacheSel: messageSelector classTag: classTag) ifFalse:
-	 	[(self lookupOrdinaryNoMNUEtcInClass: (objectMemory classForClassTag: classTag)) ~= 0 ifTrue:
-			[^false]].
-	primitiveFunctionPointer ~= 0 ifTrue:
-		[primitiveFunctionPointer := vmCallbackContext savedPrimFunctionPointer.
-		 ^false].
-	self assert: (debugCallbackInvokes := debugCallbackInvokes + 1) > 0.
-	"self assert: debugCallbackInvokes < 3802."
+	| address |
+	self print: 'Queuing Callback'; cr.
+	
+	"???"
+	"vmCallbackContext savedPrimFunctionPointer: primitiveFunctionPointer."
+	
+	"But this one is maybe necessary?"
 	self saveCStackStateForCallbackContext: vmCallbackContext.
-	self push: (objectMemory splObj: ClassAlien). "receiver"
-	(self argumentCountOf: newMethod) = 4 ifTrue:
-		[self push: (self positiveMachineIntegerFor: vmCallbackContext thunkp asUnsignedInteger).
-		 self push: (self positiveMachineIntegerFor: vmCallbackContext stackp asUnsignedInteger).
-		 self push: (self positiveMachineIntegerFor: vmCallbackContext intregargsp asUnsignedInteger)].
-	self push: (self positiveMachineIntegerFor: vmCallbackContext asUnsignedInteger).
-	self ifAppropriateCompileToNativeCode: newMethod selector: messageSelector.
-	self justActivateNewMethod.
-	(self isMachineCodeFrame: framePointer) ifFalse:
-		[self maybeFlagMethodAsInterpreted: newMethod].
-	self checkForStackOverflow.
-	self assert: (self frameReceiver: framePointer) = (objectMemory splObj: ClassAlien).
+	
+	address := self positiveMachineIntegerFor: vmCallbackContext.
+	objectMemory queueCallback: address.
+	pendingCallbacks := pendingCallbacks + 1.
+	self forceInterruptCheck.
 	self enterSmalltalkExecutiveFromCallback.
 	"not reached"
 	^true

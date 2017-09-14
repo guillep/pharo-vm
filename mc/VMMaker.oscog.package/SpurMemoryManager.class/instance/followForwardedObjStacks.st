@@ -4,4 +4,7 @@ followForwardedObjStacks
 	 So they need their slots followed."
 	self followForwardedInObjStack: markStack atIndex: MarkStackRootIndex.
 	self followForwardedInObjStack: weaklingStack atIndex: WeaklingStackRootIndex.
-	self followForwardedInObjStack: mournQueue atIndex: MournQueueRootIndex
+	self followForwardedInObjStack: mournQueue atIndex: MournQueueRootIndex.
+	
+	"Should not be necessary, if these are just callback IDs"
+	self followForwardedInObjStack: callbackQueue atIndex: CallbackQueueRootIndex.

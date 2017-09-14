@@ -95,6 +95,7 @@
 		"StreamWriteLimitIndex",
 		"SuperclassIndex",
 		"SuspendedContextIndex",
+		"TheCallbackSemaphore",
 		"TheDisplay",
 		"TheFinalizationSemaphore",
 		"TheInputSemaphore",

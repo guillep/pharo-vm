@@ -18,6 +18,7 @@ initialize
 	deferDisplayUpdates := false.
 	displayBits := displayWidth := displayHeight := displayDepth := 0.
 	pendingFinalizationSignals := statPendingFinalizationSignals := 0.
+	pendingCallbacks := 0.
 	globalSessionID := 0.
 	jmpDepth := 0.
 	longRunningPrimitiveStartUsecs := longRunningPrimitiveStopUsecs := 0.

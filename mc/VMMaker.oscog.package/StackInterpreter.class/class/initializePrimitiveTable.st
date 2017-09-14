@@ -334,7 +334,8 @@ initializePrimitiveTable
 		(558 primitiveSmallFloatLogN)
 		(559 primitiveSmallFloatExp)
 
-		(560 569 primitiveFail)
+		(560 primitiveFetchNextCallback)
+		(561 569 primitiveFail)
 
 		"External primitive support primitives"
 		(570 primitiveFlushExternalPrimitives)

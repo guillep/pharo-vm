@@ -29,6 +29,7 @@ initialize
 	WeaklingStackRootIndex := MarkStackRootIndex + 1.
 	MournQueueRootIndex := MarkStackRootIndex + 2.
 	RememberedSetRootIndex := MarkStackRootIndex + 3.
+	CallbackQueueRootIndex := MarkStackRootIndex + 4.
 
 	MarkObjectsForEnumerationPrimitives := false.
 

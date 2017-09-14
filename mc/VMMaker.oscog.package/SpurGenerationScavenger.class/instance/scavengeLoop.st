@@ -34,6 +34,7 @@ scavengeLoop
 	 firstTime ifTrue:
 		[coInterpreter mapInterpreterOops.
 		 manager mapMournQueue.
+		 manager mapCallbackQueue.
 		 manager mapExtraRoots.
 		 firstTime := false].
 	 "if nothing more copied and forwarded (or remembered by mapInterpreterOops)
