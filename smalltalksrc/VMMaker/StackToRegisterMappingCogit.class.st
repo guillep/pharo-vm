@@ -1614,7 +1614,7 @@ StackToRegisterMappingCogit >> genForwardersInlinedIdenticalOrNotIf: orNot [
 			  orNotIf: orNot ].
 
 	"If branching the stack must be flushed for the merge"
-	self ssFlushStackExceptTop: 2.
+	self ssSpillStackExceptTop: 2.
 
 	argIsConstant := unforwardArg not.
 	rcvrIsConstant := unforwardRcvr not.
@@ -1695,7 +1695,7 @@ StackToRegisterMappingCogit >> genGenericStorePop: popBoolean MaybeContextSlotIn
 	
 	"Flush the rest of the stack now that all stack manipulations have been done.
 	This guarantees that the stack is all spilled when jumping to the potential trampolines"
-	self ssFlushStack.
+	self ssSpillStack.
 
 	self 
 		cppIf: IMMUTABILITY
@@ -1741,7 +1741,7 @@ StackToRegisterMappingCogit >> genGenericStorePop: popBoolean slotIndex: slotInd
 			[self ssAllocateRequiredReg: ClassReg upThrough: simStackPtr - 1. "If already classReg don't spill it"
 			 "we replace the top value for the flush"
 			 self ssStoreAndReplacePop: popBoolean toReg: ClassReg.
-			 self ssFlushStack.
+			 self ssSpillStack.
 			 ^objectRepresentation 
 				genStoreWithImmutabilityCheckSourceReg: ClassReg 
 				slotIndex: slotIndex 
@@ -1827,7 +1827,7 @@ StackToRegisterMappingCogit >> genInlinedIdenticalOrNotIf: orNot [
 
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genJumpBackTo: targetBytecodePC [
-	self ssFlushStack.
+	self ssSpillStack.
 	deadCode := true. "can't fall through"
 	^super genJumpBackTo: targetBytecodePC
 ]
@@ -1841,7 +1841,7 @@ StackToRegisterMappingCogit >> genJumpIf: boolean to: targetBytecodePC [
 	<var: #ok type: #'AbstractInstruction *'>
 	| desc fixup ok eventualTarget |
 	eventualTarget := self eventualTargetOf: targetBytecodePC.
-	self ssFlushStackExceptTop: 1.
+	self ssSpillStackExceptTop: 1.
 	desc := self ssTop.
 	(self stackEntryIsBoolean: desc) ifTrue: [
 		"Must arrange there's a fixup at the target whether it is jumped to or
@@ -1899,10 +1899,10 @@ StackToRegisterMappingCogit >> genJumpTo: targetBytecodePC [
 									ifFalse: [0]).
 			"Since we are threading the jumps, spill everything above the top.
 			Leave the top for the next instruction that is assuming that this JUMP instruction did not consume the top"
-			self ssFlushStackExceptTop: 1.
+			self ssSpillStackExceptTop: 1.
 			fixup := self ensureFixupAt: eventualTarget withStackPointer: simStackPtr - 1]
 		ifFalse:
-			[self ssFlushStack.
+			[self ssSpillStack.
 			fixup := self ensureFixupAt: eventualTarget].
 	deadCode := true. "can't fall through"
 	self Jump: fixup.
@@ -2322,7 +2322,7 @@ StackToRegisterMappingCogit >> genPushNewArrayBytecode [
 	self voidReceiverResultRegContainsSelf.
 	"Spill everything in the stack so that we can simplify the access just by doing a pop"
 	(popValues := byte1 > 127)
-		ifTrue: [self ssFlushStack]
+		ifTrue: [self ssSpillStack]
 		ifFalse: [self ssAllocateCallReg: SendNumArgsReg and: ReceiverResultReg].
 
 	size := byte1 bitAnd: 127.
@@ -2577,7 +2577,7 @@ StackToRegisterMappingCogit >> genSpecialSelectorArithmetic [
 
 	argIsConst
 		ifTrue: [
-			self ssFlushStackExceptTop: 2.
+			self ssSpillStackExceptTop: 2.
 			self ssPop: 1.
 			self ssPopTopToReg: ReceiverResultReg ]
 		ifFalse:
@@ -2666,7 +2666,7 @@ StackToRegisterMappingCogit >> genSpecialSelectorComparison [
 	<var: #branchDescriptor type: #'BytecodeDescriptor *'>
 	<var: #jumpNotSmallInts type: #'AbstractInstruction *'>
 	| nextPC postBranchPC targetPC primDescriptor branchDescriptor rcvrIsInt rcvrIsConst argIsIntConst argInt jumpNotSmallInts inlineCAB index |
-	self ssFlushStackExceptTop: 2.
+	self ssSpillStackExceptTop: 2.
 	primDescriptor := self generatorAt: byte0.
 	argIsIntConst := self ssTop type = SSConstant and: [
 		                 objectMemory isIntegerObject:
@@ -3052,7 +3052,7 @@ StackToRegisterMappingCogit >> genUpArrowReturn [
 	deadCode := true. "can't fall through"
 	inBlock > 0 ifTrue:
 		[self assert: needsFrame.
-		 self ssFlushStack.
+		 self ssSpillStack.
 		 self CallRT: ceNonLocalReturnTrampoline.
 		 self annotateBytecode: self Label.
 		 ^0].
@@ -3485,7 +3485,7 @@ StackToRegisterMappingCogit >> marshallSendArguments: numArgs [
 	 If the args don't fit in registers push receiver and args (spill everything), but still assign
 	 the receiver to ReceiverResultReg."
 
-	self ssFlushStackExceptTop: numArgs + 1.
+	self ssSpillStackExceptTop: numArgs + 1.
 	numArgs > self numRegArgs
 		ifTrue: [ "If there are no spills and no references to ReceiverResultReg
 			 the fetch of ReceiverResultReg from the stack can be avoided
@@ -3495,14 +3495,14 @@ StackToRegisterMappingCogit >> marshallSendArguments: numArgs [
 			anyRefs := self anyReferencesToRegister: ReceiverResultReg inTopNItems: numArgs + 1.
 			(numSpilled > 0 or: [ anyRefs ])
 				ifTrue: [
-					self ssFlushStack.
+					self ssSpillStack.
 					(self simStackAt: simStackPtr - numArgs) copyToReg: ReceiverResultReg ]
 				ifFalse: [
 					(self simStackAt: simStackPtr - numArgs)
 						copyToReg: ReceiverResultReg;
 						type: SSRegister;
 						registerr: ReceiverResultReg.
-					self ssFlushStack ].
+					self ssSpillStack ].
 			
 			"Pop from the stack, so that subsequent compilation in this unit make as if they were popped.
 			However, but do not discard the entries in the runtime stack (do not generate pops).
@@ -3584,7 +3584,7 @@ StackToRegisterMappingCogit >> mergeWithFixupIfRequired: fixup [
 			restores the simStack to the state the jumps to the merge point expects it to be.
 		4) the bytecode has a merge fixup and execution flow *can* fall through to the merge point.
 			the fixup has needsMergeFixup and deadCode = false.
-			flushes the stack to the stack pointer so the fall through execution path simStack is 
+			spills the stack to the stack pointer so the fall through execution path simStack is 
 				in the state the merge point expects it to be. 
 			restores the simStack to the state the jumps to the merge point expects it to be.
 			
@@ -3611,7 +3611,7 @@ StackToRegisterMappingCogit >> mergeWithFixupIfRequired: fixup [
 			 self assert: (fixup simStackPtr >= methodOrBlockNumTemps).
 			 simStackPtr := fixup simStackPtr ]
 		ifFalse: "case 4"
-			[self ssFlushStack].
+			[self ssSpillStack].
 
 	"cases 3 and 4"
 	deadCode := false.
@@ -4277,6 +4277,56 @@ StackToRegisterMappingCogit >> ssAllocateCallReg: requiredReg upThrough: aStackP
 		upThrough: aStackPointer
 ]
 
+{ #category : 'register allocation' }
+StackToRegisterMappingCogit >> ssAllocateRegisters [
+
+	^ self ssAllocateRegistersForceSpilling: false
+]
+
+{ #category : 'register allocation' }
+StackToRegisterMappingCogit >> ssAllocateRegistersForceSpilling: forceSpilling [
+	"Iterate the stack from top to bottom.
+	For each entry, if it is:
+		- constant: allocate a register, move the constant to that register, update the stack
+		- register: do nothing, we already have a register
+		- memory address: do nothing for now, it's spilled.
+
+	If during register allocation we run out of registers, or we force spilling, spill the slot instead:
+		- push the value to memory
+		- update the stack with the spill address.
+	
+	Forced spilling is useful for testing"
+
+	"Iterate only the entries between the stack top and the spill base.
+	This way we only iterate non spilled entries"
+
+	| shouldContinueAllocation hottestIndexToSpill |
+	"First iterate all entries from top to bottom until we run out of registers.
+	When we run out of registers, store into hottestIndexToSpill the index of the new spilling base.
+	"
+	shouldContinueAllocation := true.
+	hottestIndexToSpill := simSpillBase - 1.
+	simStackPtr to: simSpillBase by: -1 do: [ :index |
+		| stackEntry |
+		stackEntry := self simStackAt: index.
+		shouldContinueAllocation ifTrue: [
+			stackEntry type = SSConstant ifTrue: [
+				| freshRegister |
+				freshRegister := self allocateRegNotConflictingWith: 0.
+				shouldContinueAllocation := freshRegister ~= NoReg and: [
+					                            forceSpilling not ].
+
+				shouldContinueAllocation ifFalse: [ hottestIndexToSpill := index ].
+				shouldContinueAllocation ifTrue: [
+					self MoveCq: stackEntry constant R: freshRegister.
+					stackEntry type: SSRegister.
+					stackEntry spilled: false.
+					stackEntry registerr: freshRegister ] ] ] ].
+
+	"Now spill everything in between the old spill base and the new spill base"
+	self ssFlushTo: hottestIndexToSpill
+]
+
 { #category : 'simulation stack' }
 StackToRegisterMappingCogit >> ssAllocateRequiredFloatReg: requiredReg [
 	self ssAllocateRequiredFloatRegMask: (self registerMaskFor: requiredReg)
@@ -4355,30 +4405,17 @@ StackToRegisterMappingCogit >> ssAllocateRequiredRegMask: requiredRegsMask upThr
 		 self deny: (self liveRegisters anyMask: requiredRegsMask)]
 ]
 
-{ #category : 'as yet unclassified' }
-StackToRegisterMappingCogit >> ssFlushStack [
-	
-	self ssFlushStackExceptTop: 0
-]
-
-{ #category : 'as yet unclassified' }
-StackToRegisterMappingCogit >> ssFlushStackExceptTop: n [
-	
-	self ssFlushTo: simStackPtr - n
-]
-
 { #category : 'simulation stack' }
 StackToRegisterMappingCogit >> ssFlushTo: index [
+
 	<inline: true>
 	self assert: self tempsValidAndVolatileEntriesSpilled.
-	simSpillBase <= index ifTrue:
-		[(((simSpillBase max: methodOrBlockNumTemps + 1) min: simStackPtr) min: index) to: index do:
-			[:i|
+	simSpillBase <= index ifTrue: [
+		(((simSpillBase max: methodOrBlockNumTemps + 1) min: simStackPtr)
+			 min: index) to: index do: [ :i |
 			self assert: needsFrame.
-			(self simStackAt: i)
-				ensureSpilledAt: (self frameOffsetOfTemporary: i - 1) "frameOffsetOfTemporary: is 0-relative"
-				from: FPReg].
-		 simSpillBase := index + 1]
+			self ssSpillEntryAt: i ].
+		simSpillBase := index + 1 ]
 ]
 
 { #category : 'simulation stack' }
@@ -4579,6 +4616,29 @@ StackToRegisterMappingCogit >> ssSelfDescriptor [
 StackToRegisterMappingCogit >> ssSize [
 	
 	^ simStackPtr + 1
+]
+
+{ #category : 'simulation stack' }
+StackToRegisterMappingCogit >> ssSpillEntryAt: i [
+
+	<inline: true>
+	self assert: needsFrame.
+	"frameOffsetOfTemporary: is 0-relative"
+	(self simStackAt: i)
+		ensureSpilledAt: (self frameOffsetOfTemporary: i - 1)
+		from: FPReg
+]
+
+{ #category : 'as yet unclassified' }
+StackToRegisterMappingCogit >> ssSpillStack [
+	
+	self ssSpillStackExceptTop: 0
+]
+
+{ #category : 'as yet unclassified' }
+StackToRegisterMappingCogit >> ssSpillStackExceptTop: n [
+	
+	self ssFlushTo: simStackPtr - n
 ]
 
 { #category : 'simulation stack' }

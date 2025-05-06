@@ -10024,6 +10024,12 @@ Cogit >> offsetAndSendTableFor: entryPoint annotation: annotation into: binaryBl
 ]
 
 { #category : 'accessing' }
+Cogit >> opcodeIndex [
+	<doNotGenerate>
+	^ opcodeIndex
+]
+
+{ #category : 'accessing' }
 Cogit >> openPICSize [
 	<doNotGenerate>
 	^ openPICSize

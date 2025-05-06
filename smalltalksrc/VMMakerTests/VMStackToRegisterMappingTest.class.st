@@ -31,14 +31,14 @@ VMStackToRegisterMappingTest >> setUp [
 	cogit needsFrame: true
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testFlushBelowTop [
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
 		cogit ssPushConstant: 1.
 		"Do not flush the constant, and pop it"
-		cogit ssFlushStackExceptTop: 1.
+		cogit ssSpillStackExceptTop: 1.
 		cogit ssPop: 1 popSpilled: false.
 		stop := cogit Stop
 	].
@@ -59,7 +59,7 @@ VMStackToRegisterMappingTest >> testFlushBelowTop [
 	self assert: self popAddress equals: (memory integerObjectOf: 17)
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPopConstant [
 
 	cogit ssPushConstant: 1.
@@ -69,13 +69,13 @@ VMStackToRegisterMappingTest >> testPopConstant [
 	self assert: cogit ssTop equals: cogit simSelf.
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPopNonSpilledTopToRegister [
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
 		cogit ssPushConstant: 1.
-		cogit ssFlushStackExceptTop: 1.
+		cogit ssSpillStackExceptTop: 1.
 		cogit ssPopTopToReg: ReceiverResultReg.
 		stop := cogit Stop
 	].
@@ -96,7 +96,7 @@ VMStackToRegisterMappingTest >> testPopNonSpilledTopToRegister [
 	self assert: self machineSimulator receiverRegisterValue equals: 1
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPopRegister [
 
 	cogit ssPushRegister: TempReg.
@@ -106,13 +106,13 @@ VMStackToRegisterMappingTest >> testPopRegister [
 	self assert: cogit ssTop equals: cogit simSelf
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPopSpilledConstantShouldPopFromStack [
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
 		cogit ssPushConstant: 1.
-		cogit ssFlushStack.
+		cogit ssSpillStack.
 		cogit ssPop: 1.
 		stop := cogit Stop
 	].
@@ -132,13 +132,13 @@ VMStackToRegisterMappingTest >> testPopSpilledConstantShouldPopFromStack [
 	self assert: self machineSimulator smalltalkStackPointerRegisterValue equals: stackPointerBefore
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPopSpilledConstantWithoutPoppingShouldNotPopFromStack [
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
 		cogit ssPushConstant: 1.
-		cogit ssFlushStack.
+		cogit ssSpillStack.
 		cogit ssPop: 1 popSpilled: false.
 		stop := cogit Stop
 	].
@@ -159,13 +159,13 @@ VMStackToRegisterMappingTest >> testPopSpilledConstantWithoutPoppingShouldNotPop
 	self assert: self popAddress equals: 1
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPopSpilledTopToRegister [
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
 		cogit ssPushConstant: 1.
-		cogit ssFlushStack.
+		cogit ssSpillStack.
 		cogit ssPopTopToReg: ReceiverResultReg.
 		stop := cogit Stop
 	].
@@ -186,7 +186,7 @@ VMStackToRegisterMappingTest >> testPopSpilledTopToRegister [
 	self assert: self machineSimulator receiverRegisterValue equals: 1
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPushConstant [
 
 	cogit ssPushConstant: 1.
@@ -197,7 +197,7 @@ VMStackToRegisterMappingTest >> testPushConstant [
 	self deny: cogit ssTop spilled
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPushRegister [
 
 	cogit ssPushRegister: TempReg.
@@ -208,11 +208,11 @@ VMStackToRegisterMappingTest >> testPushRegister [
 	self deny: cogit ssTop spilled
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testSpillConstant [
 
 	cogit ssPushConstant: 1.
-	cogit ssFlushStack.
+	cogit ssSpillStack.
 
 	"Should not pop/push the stack"	
 	self assert: cogit ssSize equals: 2.
@@ -225,11 +225,11 @@ VMStackToRegisterMappingTest >> testSpillConstant [
 	self assert: cogit ssTop spilled
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testSpillRegister [
 
 	cogit ssPushRegister: TempReg.
-	cogit ssFlushStack.
+	cogit ssSpillStack.
 
 	"Should not pop/push the stack"	
 	self assert: cogit ssSize equals: 2.
@@ -244,7 +244,7 @@ VMStackToRegisterMappingTest >> testSpillRegister [
 	self assert: cogit ssTop spilled
 ]
 
-{ #category : 'tests' }
+{ #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testTopOfEmptyIsSimSelf [
 	
 	self assert: cogit ssSize equals: 1.

@@ -159,14 +159,15 @@ CogSimStackEntry >> copyToReg: reg [
 ]
 
 { #category : 'compile abstract instructions' }
-CogSimStackEntry >> ensureSpilledAt: baseOffset from: baseRegister [
+CogSimStackEntry >> ensureSpilledAt: offsetConstant from: baseRegister [
 	| inst |
 	<var: #inst type: #'AbstractInstruction *'>
 	spilled ifTrue:
 		[type = SSSpill ifTrue:
-			[self assert: ((offset = baseOffset and: [registerr = baseRegister]) or: [cogit violatesEnsureSpilledSpillAssert]).
+			[self assert: ((offset = offsetConstant and: [registerr = baseRegister]) or: [cogit violatesEnsureSpilledSpillAssert]).
 			 ^self]].
 	self assert: type ~= SSSpill.
+
 	cogit traceSpill: self.
 	type = SSConstant
 		ifTrue:
@@ -180,7 +181,7 @@ CogSimStackEntry >> ensureSpilledAt: baseOffset from: baseRegister [
 					[self assert: type = SSRegister.
 					 inst := cogit PushR: registerr].
 			 type := SSSpill.
-			 offset := baseOffset.
+			 offset := offsetConstant.
 			 registerr := baseRegister].
 	spilled := true.
 ]
