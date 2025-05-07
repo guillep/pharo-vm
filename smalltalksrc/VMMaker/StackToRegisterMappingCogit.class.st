@@ -822,6 +822,11 @@ StackToRegisterMappingCogit >> compileTwoPathFramelessInit [
 ]
 
 { #category : 'accessing' }
+StackToRegisterMappingCogit >> currentAbstractStack [
+	^ currentAbstractStack
+]
+
+{ #category : 'accessing' }
 StackToRegisterMappingCogit >> deadCode [
 	^ deadCode
 ]
@@ -1537,23 +1542,23 @@ StackToRegisterMappingCogit >> genInlinedIdenticalOrNotIf: orNot [
 	<var: #primDescriptor type: #'BytecodeDescriptor *'>
 	primDescriptor := self generatorAt: byte0.
 	
-	((objectRepresentation isUnannotatableConstant: self ssTop)
-	 and: [ objectRepresentation isUnannotatableConstant: (self ssValue: 1) ]) ifTrue:
+	((objectRepresentation isUnannotatableConstant: currentAbstractStack  ssTop)
+	 and: [ objectRepresentation isUnannotatableConstant: (currentAbstractStack  ssValue: 1) ]) ifTrue:
 		[self assert: primDescriptor isMapped not.
 		 result := (orNot
-					ifFalse: [self ssTop constant = (self ssValue: 1) constant]
-					ifTrue: [self ssTop constant ~= (self ssValue: 1) constant])
+					ifFalse: [currentAbstractStack  ssTop constant = (currentAbstractStack  ssValue: 1) constant]
+					ifTrue: [currentAbstractStack  ssTop constant ~= (currentAbstractStack  ssValue: 1) constant])
 									ifTrue: [objectMemory trueObject]
 									ifFalse: [objectMemory falseObject].
-		 self ssPop: 2.
-		 ^self ssPushConstant: result].
+		 currentAbstractStack  ssPop: 2.
+		 ^currentAbstractStack  ssPushConstant: result].
 
 	^objectRepresentation genInlinedIdenticalOrNotIfGuts: orNot
 ]
 
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genJumpBackTo: targetBytecodePC [
-	self ssSpillStack.
+	currentAbstractStack  ssSpillStack.
 	deadCode := true. "can't fall through"
 	^super genJumpBackTo: targetBytecodePC
 ]
@@ -1567,12 +1572,12 @@ StackToRegisterMappingCogit >> genJumpIf: boolean to: targetBytecodePC [
 	<var: #ok type: #'AbstractInstruction *'>
 	| desc fixup ok eventualTarget |
 	eventualTarget := self eventualTargetOf: targetBytecodePC.
-	self ssSpillStackExceptTop: 1.
-	desc := self ssTop.
+	currentAbstractStack  ssSpillStackExceptTop: 1.
+	desc := currentAbstractStack  ssTop.
 	(currentAbstractStack  stackEntryIsBoolean: desc) ifTrue: [
 		"Must arrange there's a fixup at the target whether it is jumped to or
 		not so that the simStackPtr can be kept correct."
-		self ssPop: 1.
+		currentAbstractStack  ssPop: 1.
 		fixup := self ensureFixupAt: eventualTarget.
 		"Must annotate the bytecode for correct pc mapping."
 		self annotateBytecode: (desc constant = boolean
@@ -1583,7 +1588,7 @@ StackToRegisterMappingCogit >> genJumpIf: boolean to: targetBytecodePC [
 						 ifFalse: [ self Label ] ]).
 		extA := 0.
 		^ 0 ].
-	self ssPopTopToReg: TempReg.
+	currentAbstractStack  ssPopTopToReg: TempReg.
 	"Cunning trick by LPD.  If true and false are contiguous subtract the smaller.
 	 Correct result is either 0 or the distance between them.  If result is not 0 or
 	 their distance send mustBeBoolean."
@@ -1734,7 +1739,7 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 	self genLoadInlineCacheWithSelector: selectorIndex.
 	(self Call: (sendTable at: (numArgs min: NumSendTrampolines - 1))) annotation: annotation.
 	self voidReceiverOptStatus.
-	self ssPushRegister: ReceiverResultReg.
+	currentAbstractStack  ssPushRegister: ReceiverResultReg.
 	^ 0
 ]
 
@@ -1821,7 +1826,7 @@ StackToRegisterMappingCogit >> genPICMissTrampolineFor: numArgs [
 
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genPopStackBytecode [
-	self ssPop: 1.
+	currentAbstractStack  ssPop: 1.
 	^0
 ]
 
@@ -1947,7 +1952,7 @@ StackToRegisterMappingCogit >> genPushFloat64ArrayToRegister [
 
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genPushLiteral: literal [
-	self ssPushConstant: literal.
+	currentAbstractStack  ssPushConstant: literal.
 	^ 0
 ]
 
@@ -2158,7 +2163,7 @@ StackToRegisterMappingCogit >> genReturnTopFromBlock [
 
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genReturnTopFromMethod [
-	self ssPopTopToReg: ReceiverResultReg.
+	currentAbstractStack  ssPopTopToReg: ReceiverResultReg.
 	^self genUpArrowReturn
 ]
 
@@ -2306,9 +2311,9 @@ StackToRegisterMappingCogit >> genSpecialSelectorArithmetic [
 
 	argIsConst
 		ifTrue: [
-			self ssSpillStackExceptTop: 2.
-			self ssPop: 1.
-			self ssPopTopToReg: ReceiverResultReg ]
+			currentAbstractStack  ssSpillStackExceptTop: 2.
+			currentAbstractStack  ssPop: 1.
+			currentAbstractStack  ssPopTopToReg: ReceiverResultReg ]
 		ifFalse:
 			[self marshallSendArguments: 1].
 	jumpNotSmallInts := (rcvrIsInt and: [argIsInt]) ifFalse:
@@ -3316,7 +3321,7 @@ StackToRegisterMappingCogit >> mergeWithFixupIfRequired: fixup [
 			 self assert: (fixup simStackPtr >= methodOrBlockNumTemps).
 			 currentAbstractStack simStackPtr: fixup simStackPtr ]
 		ifFalse: "case 4"
-			[self ssSpillStack].
+			[currentAbstractStack  ssSpillStack].
 
 	"cases 3 and 4"
 	deadCode := false.
@@ -3807,72 +3812,6 @@ StackToRegisterMappingCogit >> sistaV1PushNilSize: aMethodObj numInitialNils: nu
 	"230		11100110	iiiiiiii		PushNClosureTemps iiiiiiii"
 	<inline: true>
 	^numInitialNils
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssAllocateRegisters [
-
-	currentAbstractStack ssAllocateRegisters
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssAllocateRegistersForceSpilling: aBoolean [
-
-	currentAbstractStack ssAllocateRegistersForceSpilling: aBoolean
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssPop: anInteger [
-
-	currentAbstractStack ssPop: anInteger
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssPop: anInteger popSpilled: aBoolean [
-
-	^ currentAbstractStack ssPop: anInteger popSpilled: aBoolean
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssPopTopToReg: aRegisterId [
-
-	currentAbstractStack ssPopTopToReg: aRegisterId
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssPushConstant: anInteger [ 
-	
-	currentAbstractStack ssPushConstant: anInteger
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssPushRegister: aRegisterId [
-
-	currentAbstractStack ssPushRegister: aRegisterId
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssSize [
-
-	^ currentAbstractStack ssSize
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssSpillStack [
-
-	currentAbstractStack ssSpillStack
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssSpillStackExceptTop: anInteger [
-
-	^ currentAbstractStack ssSpillStackExceptTop: anInteger
-]
-
-{ #category : 'abstract stack' }
-StackToRegisterMappingCogit >> ssTop [
-
-	^ currentAbstractStack ssTop
 ]
 
 { #category : 'simulation only' }

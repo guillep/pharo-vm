@@ -36,10 +36,10 @@ VMStackToRegisterMappingTest >> testFlushBelowTop [
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
-		cogit ssPushConstant: 1.
+		cogit currentAbstractStack ssPushConstant: 1.
 		"Do not flush the constant, and pop it"
-		cogit ssSpillStackExceptTop: 1.
-		cogit ssPop: 1 popSpilled: false.
+		cogit currentAbstractStack ssSpillStackExceptTop: 1.
+		cogit currentAbstractStack ssPop: 1 popSpilled: false.
 		stop := cogit Stop
 	].
 
@@ -62,11 +62,11 @@ VMStackToRegisterMappingTest >> testFlushBelowTop [
 { #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPopConstant [
 
-	cogit ssPushConstant: 1.
-	cogit ssPop: 1.
+	cogit currentAbstractStack ssPushConstant: 1.
+	cogit currentAbstractStack ssPop: 1.
 	
-	self assert: cogit ssSize equals: 1.
-	self assert: cogit ssTop equals: cogit simSelf.
+	self assert: cogit currentAbstractStack ssSize equals: 1.
+	self assert: cogit currentAbstractStack ssTop equals: cogit currentAbstractStack simSelf.
 ]
 
 { #category : 'as yet unclassified' }
@@ -74,9 +74,9 @@ VMStackToRegisterMappingTest >> testPopNonSpilledTopToRegister [
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
-		cogit ssPushConstant: 1.
-		cogit ssSpillStackExceptTop: 1.
-		cogit ssPopTopToReg: ReceiverResultReg.
+		cogit currentAbstractStack ssPushConstant: 1.
+		cogit currentAbstractStack ssSpillStackExceptTop: 1.
+		cogit currentAbstractStack ssPopTopToReg: ReceiverResultReg.
 		stop := cogit Stop
 	].
 
@@ -99,11 +99,11 @@ VMStackToRegisterMappingTest >> testPopNonSpilledTopToRegister [
 { #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPopRegister [
 
-	cogit ssPushRegister: TempReg.
-	cogit ssPop: 1.
+	cogit currentAbstractStack ssPushRegister: TempReg.
+	cogit currentAbstractStack ssPop: 1.
 	
-	self assert: cogit ssSize equals: 1.
-	self assert: cogit ssTop equals: cogit simSelf
+	self assert: cogit currentAbstractStack ssSize equals: 1.
+	self assert: cogit currentAbstractStack ssTop equals: cogit currentAbstractStack simSelf
 ]
 
 { #category : 'as yet unclassified' }
@@ -111,9 +111,9 @@ VMStackToRegisterMappingTest >> testPopSpilledConstantShouldPopFromStack [
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
-		cogit ssPushConstant: 1.
-		cogit ssSpillStack.
-		cogit ssPop: 1.
+		cogit currentAbstractStack ssPushConstant: 1.
+		cogit currentAbstractStack ssSpillStack.
+		cogit currentAbstractStack ssPop: 1.
 		stop := cogit Stop
 	].
 
@@ -137,9 +137,9 @@ VMStackToRegisterMappingTest >> testPopSpilledConstantWithoutPoppingShouldNotPop
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
-		cogit ssPushConstant: 1.
-		cogit ssSpillStack.
-		cogit ssPop: 1 popSpilled: false.
+		cogit currentAbstractStack ssPushConstant: 1.
+		cogit currentAbstractStack ssSpillStack.
+		cogit currentAbstractStack ssPop: 1 popSpilled: false.
 		stop := cogit Stop
 	].
 
@@ -164,9 +164,9 @@ VMStackToRegisterMappingTest >> testPopSpilledTopToRegister [
 
 	| stop stackPointerBefore framePointer |
 	sendAddress := self compile: [
-		cogit ssPushConstant: 1.
-		cogit ssSpillStack.
-		cogit ssPopTopToReg: ReceiverResultReg.
+		cogit currentAbstractStack ssPushConstant: 1.
+		cogit currentAbstractStack ssSpillStack.
+		cogit currentAbstractStack ssPopTopToReg: ReceiverResultReg.
 		stop := cogit Stop
 	].
 
@@ -189,64 +189,64 @@ VMStackToRegisterMappingTest >> testPopSpilledTopToRegister [
 { #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPushConstant [
 
-	cogit ssPushConstant: 1.
+	cogit currentAbstractStack ssPushConstant: 1.
 	
-	self assert: cogit ssSize equals: 2.
-	self assert: cogit ssTop type equals: SSConstant.
-	self assert: cogit ssTop constant equals: 1.
-	self deny: cogit ssTop spilled
+	self assert: cogit currentAbstractStack ssSize equals: 2.
+	self assert: cogit currentAbstractStack ssTop type equals: SSConstant.
+	self assert: cogit currentAbstractStack ssTop constant equals: 1.
+	self deny: cogit currentAbstractStack ssTop spilled
 ]
 
 { #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testPushRegister [
 
-	cogit ssPushRegister: TempReg.
+	cogit currentAbstractStack ssPushRegister: TempReg.
 
-	self assert: cogit ssSize equals: 2.
-	self assert: cogit ssTop type equals: SSRegister.
-	self assert: cogit ssTop registerr equals: TempReg.
-	self deny: cogit ssTop spilled
+	self assert: cogit currentAbstractStack ssSize equals: 2.
+	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit currentAbstractStack ssTop registerr equals: TempReg.
+	self deny: cogit currentAbstractStack ssTop spilled
 ]
 
 { #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testSpillConstant [
 
-	cogit ssPushConstant: 1.
-	cogit ssSpillStack.
+	cogit currentAbstractStack ssPushConstant: 1.
+	cogit currentAbstractStack ssSpillStack.
 
 	"Should not pop/push the stack"	
-	self assert: cogit ssSize equals: 2.
+	self assert: cogit currentAbstractStack ssSize equals: 2.
 	
 	"The element should be the same as before"
-	self assert: cogit ssTop type equals: SSConstant.
-	self assert: cogit ssTop constant equals: 1.
+	self assert: cogit currentAbstractStack ssTop type equals: SSConstant.
+	self assert: cogit currentAbstractStack ssTop constant equals: 1.
 	
 	"But not it is spilled"
-	self assert: cogit ssTop spilled
+	self assert: cogit currentAbstractStack ssTop spilled
 ]
 
 { #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testSpillRegister [
 
-	cogit ssPushRegister: TempReg.
-	cogit ssSpillStack.
+	cogit currentAbstractStack ssPushRegister: TempReg.
+	cogit currentAbstractStack ssSpillStack.
 
 	"Should not pop/push the stack"	
-	self assert: cogit ssSize equals: 2.
+	self assert: cogit currentAbstractStack ssSize equals: 2.
 	
 	"The element should now be in a spilled position in the stack.
 	I.e., Relative to FPReg, with offset 4 (base 0) in the frame (the first three are saved FP, method, context, receiver)"
-	self assert: cogit ssTop type equals: SSSpill.
-	self assert: cogit ssTop base equals: FPReg.
-	self assert: cogit ssTop offset equals: -4 * memory wordSize.
+	self assert: cogit currentAbstractStack ssTop type equals: SSSpill.
+	self assert: cogit currentAbstractStack ssTop base equals: FPReg.
+	self assert: cogit currentAbstractStack ssTop offset equals: -4 * memory wordSize.
 	
 	"But it is spilled"
-	self assert: cogit ssTop spilled
+	self assert: cogit currentAbstractStack ssTop spilled
 ]
 
 { #category : 'as yet unclassified' }
 VMStackToRegisterMappingTest >> testTopOfEmptyIsSimSelf [
 	
-	self assert: cogit ssSize equals: 1.
-	self assert: cogit ssTop equals: cogit simSelf
+	self assert: cogit currentAbstractStack ssSize equals: 1.
+	self assert: cogit currentAbstractStack ssTop equals: cogit currentAbstractStack simSelf
 ]

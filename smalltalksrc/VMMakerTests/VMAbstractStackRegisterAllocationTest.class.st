@@ -1,6 +1,9 @@
 Class {
 	#name : 'VMAbstractStackRegisterAllocationTest',
 	#superclass : 'VMStackToRegisterMappingCogitTest',
+	#instVars : [
+		'currentAbstractStack'
+	],
 	#pools : [
 		'CogRTLOpcodes',
 		'VMStackFrameOffsets'
@@ -32,7 +35,7 @@ VMAbstractStackRegisterAllocationTest >> setUp [
 	cogit initSimStackPointer: 0.
 	
 	"Initialize the self stack entry as spilled relative to the frame pointer"
-	cogit simSelf
+	cogit currentAbstractStack simSelf
 		type: SSBaseOffset;
 		spilled: true;
 		registerr: FPReg;
@@ -40,27 +43,29 @@ VMAbstractStackRegisterAllocationTest >> setUp [
 		liveRegister: NoReg.
 	
 	"Spilling only works on frameful compilation"
-	cogit needsFrame: true
+	cogit needsFrame: true.
+	
+	currentAbstractStack := cogit currentAbstractStack.
 ]
 
 { #category : 'tests' }
 VMAbstractStackRegisterAllocationTest >> testReceiverIsInRegisterBeforeRegisterAllocation [
 
-	self assert: cogit ssSize equals: 1.
-	self assert: cogit ssTop equals: cogit simSelf.
-	self assert: cogit ssTop spilled
+	self assert: currentAbstractStack ssSize equals: 1.
+	self assert: currentAbstractStack ssTop equals: currentAbstractStack simSelf.
+	self assert: currentAbstractStack ssTop spilled
 ]
 
 { #category : 'tests' }
 VMAbstractStackRegisterAllocationTest >> testRegisterAllocationShouldMoveConstantIntoMemoryIfSpilling [
 
-	cogit ssPushConstant: 7.
-	cogit ssAllocateRegistersForceSpilling: true.
+	currentAbstractStack ssPushConstant: 7.
+	currentAbstractStack ssAllocateRegistersForceSpilling: true.
 
 	"Check the stack was modified"
-	self assert: cogit ssSize equals: 2.
-	self assert: cogit ssTop spilled.
-	self assert: cogit ssTop type equals: SSConstant.
+	self assert: currentAbstractStack ssSize equals: 2.
+	self assert: currentAbstractStack ssTop spilled.
+	self assert: currentAbstractStack ssTop type equals: SSConstant.
 
 	"And that the last generated instruction was a constant push.
 	This should generate a PushCq(7)"
@@ -71,12 +76,12 @@ VMAbstractStackRegisterAllocationTest >> testRegisterAllocationShouldMoveConstan
 { #category : 'tests' }
 VMAbstractStackRegisterAllocationTest >> testRegisterAllocationShouldMoveConstantIntoRegister [
 
-	cogit ssPushConstant: 7.
-	cogit ssAllocateRegisters.
+	currentAbstractStack ssPushConstant: 7.
+	currentAbstractStack ssAllocateRegisters.
 
 	"Check the stack was modified"
-	self assert: cogit ssSize equals: 2.
-	self assert: cogit ssTop type equals: SSRegister.
+	self assert: currentAbstractStack ssSize equals: 2.
+	self assert: currentAbstractStack ssTop type equals: SSRegister.
 
 	"And that the last generated instruction was a move of the constant to the register in the stack
 	This should generate a MoveCqR(7, TheRegisterInStack)"
@@ -84,26 +89,26 @@ VMAbstractStackRegisterAllocationTest >> testRegisterAllocationShouldMoveConstan
 	self assert: (cogit lastOpcode operands at: 0) equals: 7.
 	self
 		assert: (cogit lastOpcode operands at: 1)
-		equals: cogit ssTop registerr
+		equals: currentAbstractStack ssTop registerr
 ]
 
 { #category : 'tests' }
 VMAbstractStackRegisterAllocationTest >> testRegisterAllocationShouldNotAffectTopSpilled [
 
-	cogit ssAllocateRegisters.
+	currentAbstractStack ssAllocateRegisters.
 
-	self assert: cogit ssSize equals: 1.
-	self assert: cogit ssTop equals: cogit simSelf.
-	self assert: cogit ssTop spilled
+	self assert: currentAbstractStack ssSize equals: 1.
+	self assert: currentAbstractStack ssTop equals: currentAbstractStack simSelf.
+	self assert: currentAbstractStack ssTop spilled
 ]
 
 { #category : 'tests' }
 VMAbstractStackRegisterAllocationTest >> testRegisterAllocationShouldSpillInTheRightOrder [
 
 	| firstInstruction lastInstruction |
-	cogit ssPushConstant: 7.
-	cogit ssPushConstant: 42.
-	cogit ssAllocateRegistersForceSpilling: true.
+	currentAbstractStack ssPushConstant: 7.
+	currentAbstractStack ssPushConstant: 42.
+	currentAbstractStack ssAllocateRegistersForceSpilling: true.
 
 	"Expect PushCq(7)"
 	firstInstruction := cogit abstractInstructionAt: cogit opcodeIndex - 2.
