@@ -408,26 +408,6 @@ VMClass class >> writeVMHeaderTo: aStream bytesPerWord: bytesPerWord generator: 
 	aStream newLine
 ]
 
-{ #category : 'translation support' }
-VMClass >> addressOf: anObject [
-	<doNotGenerate>
-	"Translates into &anObject in C."
-	^anObject
-]
-
-{ #category : 'translation support' }
-VMClass >> addressOf: anObject put: aBlock [
-	<doNotGenerate>
-	"Simulate a C pointer.  Translates into &anObject in C. Provides something
-	 that evaluates aBlock with the new value in response to at:put:"
-	| thing |
-	thing := anObject.
-	^CPluggableAccessor new
-		setObject: nil;
-		atBlock: [:obj :idx| thing]
-		atPutBlock: [:obj :idx :val| aBlock value: (thing := val)]
-]
-
 { #category : 'C library simulation' }
 VMClass >> alloca: desiredSize [
 	"Simulation of alloca(3)"
