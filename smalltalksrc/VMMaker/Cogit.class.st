@@ -3402,6 +3402,11 @@ Cogit >> bytecodeFixupClass [
 	self subclassResponsibility
 ]
 
+{ #category : 'accessing' }
+Cogit >> bytecodePC [
+	^ bytecodePC
+]
+
 { #category : 'method map' }
 Cogit >> bytecodePCFor: mcpc startBcpc: startbcpc in: cogMethod [
 	"Answer the zero-relative bytecode pc matching the machine code pc argument in
