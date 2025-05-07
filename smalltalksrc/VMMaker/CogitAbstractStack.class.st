@@ -10,12 +10,43 @@ Class {
 	#pools : [
 		'CogAbstractRegisters',
 		'CogCompilationConstants',
-		'VMBytecodeConstants'
+		'VMBytecodeConstants',
+		'VMStackFrameOffsets'
 	],
 	#category : 'VMMaker-JIT',
 	#package : 'VMMaker',
 	#tag : 'JIT'
 }
+
+{ #category : 'bytecode generator support' }
+CogitAbstractStack >> allocateEqualsEqualsRegistersArgNeedsReg: argNeedsReg rcvrNeedsReg: rcvrNeedsReg into: binaryBlock [
+
+	| argReg rcvrReg |
+	self assert: (argNeedsReg or: [ rcvrNeedsReg ]).
+	argReg := rcvrReg := NoReg.
+	argNeedsReg
+		ifTrue: [
+			rcvrNeedsReg
+				ifTrue: [
+					self allocateRegForStackTopTwoEntriesInto: [ :rTop :rNext |
+						argReg := rTop.
+						rcvrReg := rNext ].
+					self ssTop copyToReg: argReg.
+					(self ssValue: 1) copyToReg: rcvrReg ]
+				ifFalse: [
+					argReg := self allocateRegForStackEntryAt: 0.
+					self ssTop copyToReg: argReg ] ]
+		ifFalse: [
+			self assert: rcvrNeedsReg.
+			self deny: self ssTop spilled.
+			rcvrReg := self allocateRegForStackEntryAt: 1.
+			(self ssValue: 1) copyToReg: rcvrReg ].
+
+	self deny: (argNeedsReg and: [ argReg = NoReg ]).
+	self deny: (rcvrNeedsReg and: [ rcvrReg = NoReg ]).
+
+	binaryBlock value: rcvrReg value: argReg
+]
 
 { #category : 'simulation stack' }
 CogitAbstractStack >> allocateFloatRegNotConflictingWith: regMask [
@@ -123,7 +154,7 @@ CogitAbstractStack >> allocateRegForStackTopTwoEntriesInto: binaryBlock [
 		[ rTop := self allocateRegNotConflictingWith: topRegistersMask ].
 	
 	rNext = NoReg ifTrue:
-		[ rNext := self allocateRegNotConflictingWith: (self registerMaskFor: rTop) ].
+		[ rNext := self allocateRegNotConflictingWith: (cogit registerMaskFor: rTop) ].
 
 	self deny: (rTop = NoReg or: [rNext = NoReg]).
 
@@ -134,7 +165,7 @@ CogitAbstractStack >> allocateRegForStackTopTwoEntriesInto: binaryBlock [
 CogitAbstractStack >> allocateRegNotConflictingWith: regMask [
 	| reg |
 	"if there's a free register, use it"
-	reg := self backEnd availableRegisterOrNoneFor: (self liveRegisters bitOr: regMask).
+	reg := cogit backEnd availableRegisterOrNoneFor: (self liveRegisters bitOr: regMask).
 	reg = NoReg ifTrue: "No free register, choose one that does not conflict with regMask"
 		[reg := self freeAnyRegNotConflictingWith: regMask].
 	reg = ReceiverResultReg ifTrue: "If we've allocated RcvrResultReg, it's not live anymore"
@@ -175,7 +206,7 @@ CogitAbstractStack >> allocateVectorRegForStackEntryAt: index notConflictingWith
 CogitAbstractStack >> allocateVectorRegNotConflictingWith: regMask [
 	| reg |
 	"if there's a free register, use it"
-	reg := self backEnd availableVectorRegisterOrNoneFor: (self liveVectorRegisters bitOr: regMask).
+	reg := cogit backEnd availableVectorRegisterOrNoneFor: (self liveVectorRegisters bitOr: regMask).
 	"reg = NoReg ifTrue: ""No free register, choose one that does not conflict with regMask""
 		[reg := self freeAnyRegNotConflictingWith: regMask]."
 	^ reg
@@ -201,6 +232,21 @@ CogitAbstractStack >> anyReferencesToRegister: reg inTopNItems: n [
 		((self simStackAt: i) registerMask anyMask: regMask) ifTrue:
 			[^true]].
 	^false
+]
+
+{ #category : 'compile abstract instructions' }
+CogitAbstractStack >> assertCorrectSimStackPtr [
+	<inline: true>
+	"Would like to assert simply simSpillBase > methodOrBlockNumTemps but can't because
+	 of the initialNils hack for nested blocks in SqueakV3PlusClosures"
+	self assert: (simSpillBase >= self methodOrBlockNumTemps).
+	(self needsFrame and: [simSpillBase > 0]) ifTrue:
+		[self assert: (self simStackAt: simSpillBase - 1) spilled == true.
+		 self assert: (simSpillBase > simStackPtr or: [(self simStackAt: simSpillBase) spilled == false])].
+ 	self cCode: '' inSmalltalk:
+		[cogit deadCode ifFalse:
+			[self assert: simStackPtr + (self needsFrame ifTrue: [0] ifFalse: [1])
+						= (cogit debugStackPointerFor: self bytecodePC)]].
 ]
 
 { #category : 'simulation stack' }
@@ -391,6 +437,35 @@ CogitAbstractStack >> numberOfSpillsInTopNItems: n [
 	^0
 ]
 
+{ #category : 'abstract stack' }
+CogitAbstractStack >> restoreSimStackAtMergePoint: fixup [
+	<inline: true>
+	"All the execution paths reaching a merge point expect everything
+	 to be spilled on stack. Throw away all simStack optimization state."
+	self voidReceiverOptStatus.
+	self methodOrBlockNumTemps + 1 to: simStackPtr do:
+		[:i|
+		 (self simStackAt: i)
+			type: SSSpill;
+			offset: FoxMFReceiver - (i - cogit methodOrBlockNumArgs * cogit objectMemory bytesPerOop);
+			registerr: FPReg;
+			spilled: true].
+	simSpillBase := simStackPtr + 1.
+	^ 0
+]
+
+{ #category : 'accessing' }
+CogitAbstractStack >> simSelf [
+	<cmacro: '() simStack'>
+	<returnTypeC: #'CogSimStackEntry *'>
+	^self simStackAt: 0
+]
+
+{ #category : 'accessing' }
+CogitAbstractStack >> simSpillBase: anInteger [ 
+	simSpillBase := anInteger
+]
+
 { #category : 'simulation stack' }
 CogitAbstractStack >> simStackAt: index [
 	<cmacro: '(index) (simStack + (index))'>
@@ -399,9 +474,26 @@ CogitAbstractStack >> simStackAt: index [
 ]
 
 { #category : 'simulation stack' }
+CogitAbstractStack >> simStackDescriptorAt: index [
+	"Return a copy of the given descriptor"
+	<returnTypeC: #'CogSimStackEntry'>
+	^ simStack at: index
+]
+
+{ #category : 'simulation stack' }
 CogitAbstractStack >> simStackEntryClass [
 	<doNotGenerate>
 	^CogSimStackEntry
+]
+
+{ #category : 'accessing' }
+CogitAbstractStack >> simStackPtr [
+	^ simStackPtr
+]
+
+{ #category : 'accessing' }
+CogitAbstractStack >> simStackPtr: anInteger [ 
+	simStackPtr := anInteger
 ]
 
 { #category : 'simulation stack' }
@@ -484,6 +576,56 @@ CogitAbstractStack >> ssAllocateCallReg: requiredReg upThrough: aStackPointer [
 		upThrough: aStackPointer
 ]
 
+{ #category : 'abstract stack' }
+CogitAbstractStack >> ssAllocateRegisters [
+
+	^ self ssAllocateRegistersForceSpilling: false
+]
+
+{ #category : 'abstract stack' }
+CogitAbstractStack >> ssAllocateRegistersForceSpilling: forceSpilling [
+	"Iterate the stack from top to bottom.
+	For each entry, if it is:
+		- constant: allocate a register, move the constant to that register, update the stack
+		- register: do nothing, we already have a register
+		- memory address: do nothing for now, it's spilled.
+
+	If during register allocation we run out of registers, or we force spilling, spill the slot instead:
+		- push the value to memory
+		- update the stack with the spill address.
+	
+	Forced spilling is useful for testing"
+
+	"Iterate only the entries between the stack top and the spill base.
+	This way we only iterate non spilled entries"
+
+	| shouldContinueAllocation hottestIndexToSpill |
+	"First iterate all entries from top to bottom until we run out of registers.
+	When we run out of registers, store into hottestIndexToSpill the index of the new spilling base.
+	"
+	shouldContinueAllocation := true.
+	hottestIndexToSpill := simSpillBase - 1.
+	simStackPtr to: simSpillBase by: -1 do: [ :index |
+		| stackEntry |
+		stackEntry := self simStackAt: index.
+		shouldContinueAllocation ifTrue: [
+			stackEntry type = SSConstant ifTrue: [
+				| freshRegister |
+				freshRegister := self allocateRegNotConflictingWith: 0.
+				shouldContinueAllocation := freshRegister ~= NoReg and: [
+					                            forceSpilling not ].
+
+				shouldContinueAllocation ifFalse: [ hottestIndexToSpill := index ].
+				shouldContinueAllocation ifTrue: [
+					cogit MoveCq: stackEntry constant R: freshRegister.
+					stackEntry type: SSRegister.
+					stackEntry spilled: false.
+					stackEntry registerr: freshRegister ] ] ] ].
+
+	"Now spill everything in between the old spill base and the new spill base"
+	self ssFlushTo: hottestIndexToSpill
+]
+
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssAllocateRequiredFloatReg: requiredReg [
 	self ssAllocateRequiredFloatRegMask: (self registerMaskFor: requiredReg)
@@ -515,7 +657,7 @@ CogitAbstractStack >> ssAllocateRequiredFloatRegMask: requiredRegsMask upThrough
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssAllocateRequiredReg: requiredReg [
 	<inline: true>
-	self ssAllocateRequiredRegMask: (self registerMaskFor: requiredReg)
+	self ssAllocateRequiredRegMask: (cogit registerMaskFor: requiredReg)
 		upThrough: simStackPtr
 ]
 
@@ -538,7 +680,7 @@ CogitAbstractStack >> ssAllocateRequiredReg: requiredReg1 and: requiredReg2 upTh
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssAllocateRequiredReg: requiredReg upThrough: stackPtr [
 	<inline: true>
-	self ssAllocateRequiredRegMask: (self registerMaskFor: requiredReg)
+	self ssAllocateRequiredRegMask: (cogit registerMaskFor: requiredReg)
 		upThrough: stackPtr
 ]
 
@@ -550,7 +692,7 @@ CogitAbstractStack >> ssAllocateRequiredRegMask: requiredRegsMask upThrough: sta
 	"compute live regs while noting the last occurrence of required regs.
 	 If these are not free we must spill from simSpillBase to last occurrence.
 	 Note we are conservative here; we could allocate FPReg in frameless methods."
-	liveRegs := self registerMaskFor: FPReg and: SPReg.
+	liveRegs := cogit registerMaskFor: FPReg and: SPReg.
 	(simSpillBase max: 0) to: stackPtr do:
 		[:i|
 		liveRegs := liveRegs bitOr: (self simStackAt: i) registerMask.
@@ -595,7 +737,7 @@ CogitAbstractStack >> ssFlushUpThroughReceiverVariable: slotIndex [
 		[ :desc |  
 			desc type = SSBaseOffset
 			 and: [desc registerr = ReceiverResultReg
-			 and: [desc offset = (objectRepresentation slotOffsetOfInstVarIndex: slotIndex) ] ] ]
+			 and: [desc offset = (self objectRepresentation slotOffsetOfInstVarIndex: slotIndex) ] ] ]
 ]
 
 { #category : 'simulation stack' }
@@ -613,7 +755,7 @@ CogitAbstractStack >> ssFlushUpThroughTemporaryVariable: tempIndex [
 	<var: #desc type: #'CogSimStackEntry *'>
 	| offset |
 	offset := (self simStackAt: tempIndex + 1) offset.
-	self assert: offset = (self frameOffsetOfTemporary: tempIndex).
+	self assert: offset = (cogit frameOffsetOfTemporary: tempIndex).
 	self ssFlushUpThrough: 
 		[ :desc |
 			desc type = SSBaseOffset
@@ -655,6 +797,25 @@ CogitAbstractStack >> ssPop: n popSpilled: popSpilled [
 		[self cogit AddCq: spilledToPop * self wordSize R: SPReg].
 	
 	self updateSimSpillBase
+]
+
+{ #category : 'mapped inline primitive generators - vectorial' }
+CogitAbstractStack >> ssPopTopToReg: aRegister [
+	
+	"Peephole optimisation: generate always a single instruction.
+	If the top is spilled, generate just a pop instruction. Otherwise a copy/load"
+	self ssTop spilled
+		ifTrue: [ cogit PopR: aRegister ]
+		ifFalse: [ self ssTop copyToReg: aRegister ].
+	"No need to spill from the physical stack, we already did it"
+	self ssPop: 1 popSpilled: false.
+]
+
+{ #category : 'mapped inline primitive generators - vectorial' }
+CogitAbstractStack >> ssPopTopToVectorReg: aVectorRegister [
+
+	self ssTop moveToVectorReg: aVectorRegister.
+	self ssPop: 1
 ]
 
 { #category : 'simulation stack' }
@@ -819,10 +980,33 @@ CogitAbstractStack >> ssTopDescriptor [
 	^simStack at: simStackPtr
 ]
 
+{ #category : 'testing' }
+CogitAbstractStack >> ssTopNeedsStoreCheck [
+	<inline: true>
+	^self ssTop type ~= SSConstant
+	  or: [(self objectMemory isNonImmediate: self ssTop constant)
+		and: [self objectRepresentation shouldAnnotateObjectReference:  self ssTop constant]]
+]
+
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssValue: n [
 	<returnTypeC: #'CogSimStackEntry *'>
 	^self simStackAt: simStackPtr - n
+]
+
+{ #category : 'testing' }
+CogitAbstractStack >> stackEntryIsBoolean: simStackEntry [
+	<var: #simStackEntry type: #'CogSimStackEntry *'>
+	<inline: true>
+	^simStackEntry type = SSConstant
+	  and: [simStackEntry constant = cogit objectMemory trueObject
+			or: [simStackEntry constant = cogit objectMemory falseObject]]
+]
+
+{ #category : 'testing' }
+CogitAbstractStack >> stackTopIsBoolean [
+	<inline: true>
+	^simStackPtr >= cogit methodOrBlockNumArgs and: [self stackEntryIsBoolean: self ssTop]
 ]
 
 { #category : 'validation' }
@@ -862,6 +1046,29 @@ CogitAbstractStack >> updateSimSpillBase [
 		[:i|
 		self assert: (self simStackAt: i) spilled == true].
 	self assert: (simSpillBase > simStackPtr or: [(self simStackAt: simSpillBase) spilled == false])
+]
+
+{ #category : 'abstract stack' }
+CogitAbstractStack >> voidReceiverOptStatus [
+	"Used to mark ReceiverResultReg as dead or not containing simSelf.
+	 Used when the simStack has already been flushed, e.g. for sends."
+	<inline: true>
+	self simSelf liveRegister: NoReg
+]
+
+{ #category : 'bytecode generator support' }
+CogitAbstractStack >> voidReceiverResultRegContainsSelf [
+	"Used when ReceiverResultReg is allocated for other than simSelf, and
+	 there may be references to ReceiverResultReg which need to be spilled."
+	| spillIndex |
+	self voidReceiverOptStatus.
+	spillIndex := 0.
+	(self methodOrBlockNumTemps + 1 max: simSpillBase) to: simStackPtr do:
+		[:i|
+		(self simStackAt: i) registerOrNone = ReceiverResultReg ifTrue:
+			[spillIndex := i]].
+	spillIndex > 0 ifTrue:
+		[self ssFlushTo: spillIndex]
 ]
 
 { #category : 'accessing' }

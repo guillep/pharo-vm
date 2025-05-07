@@ -63,31 +63,9 @@ CogRASSBytecodeFixup >> mergeSimStack: anObject [
 	^mergeSimStack := anObject
 ]
 
-{ #category : 'debug printing' }
-CogRASSBytecodeFixup >> printStateOn: aStream [
-	<doNotGenerate>
-	(targetInstruction isNil and: [simStackPtr isNil]) ifTrue:
-		[^self].
-	super printStateOn: aStream.
-	mergeSimStack ifNotNil:
-		[aStream skip: -1; space; nextPut: $(.
-		 cogit printSimStack: mergeSimStack toDepth: simStackPtr spillBase: -1 on: aStream.
-		 aStream nextPut: $); nextPut: $)]
-]
-
 { #category : 'accessing' }
 CogRASSBytecodeFixup >> reinitialize [
 	<inline: true>
 	super reinitialize.
 	mergeSimStack := nil
-]
-
-{ #category : 'debug printing' }
-CogRASSBytecodeFixup >> simStackPrintString [
-	<doNotGenerate>
-	^String streamContents:
-		[:s|
-		 self notAFixup
-			ifTrue: [s nextPutAll: 'notAFixup']
-			ifFalse: [cogit printSimStack: mergeSimStack toDepth: simStackPtr spillBase: -1 on: s]]
 ]

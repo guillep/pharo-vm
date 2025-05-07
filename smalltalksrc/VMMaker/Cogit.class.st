@@ -5264,6 +5264,7 @@ Cogit >> compileCogMethod: selector [
 		[^coInterpreter cCoerceSimple: InsufficientCodeSpace to: #'CogMethod *'].
 
 	methodLabel dependent: nil.
+
 	(result := self compileEntireMethod) < 0 ifTrue:
 		[^coInterpreter cCoerceSimple: result to: #'CogMethod *'].
 	^self generateCogMethod: selector
@@ -8315,7 +8316,7 @@ Cogit >> initialize [
 	statCompileFullBlockUsecs := 0.
 	statCompileMethodCount := 0.
 	statCompileMethodUsecs := 0.
-	jitCodeZoneWriteEnabled := false.
+	jitCodeZoneWriteEnabled := false
 ]
 
 { #category : 'initialization' }
