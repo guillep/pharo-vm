@@ -256,7 +256,7 @@ CogitAbstractStack >> assertCorrectSimStackPtr [
 	<inline: true>
 	"Would like to assert simply simSpillBase > methodOrBlockNumTemps but can't because
 	 of the initialNils hack for nested blocks in SqueakV3PlusClosures"
-	self assert: (simSpillBase >= self methodOrBlockNumTemps).
+	self assert: (simSpillBase >= cogit getMethodOrBlockNumTemps).
 	(self needsFrame and: [simSpillBase > 0]) ifTrue:
 		[self assert: (self simStackAt: simSpillBase - 1) spilled == true.
 		 self assert: (simSpillBase > simStackPtr or: [(self simStackAt: simSpillBase) spilled == false])].
@@ -405,13 +405,6 @@ CogitAbstractStack >> liveVectorRegisters [
 	^ regsSet
 ]
 
-{ #category : 'accessing' }
-CogitAbstractStack >> methodOrBlockNumTemps [
-
-	<doNotGenerate>
-	^ cogit methodOrBlockNumTemps
-]
-
 { #category : 'testing' }
 CogitAbstractStack >> needsFrame [
 
@@ -446,7 +439,7 @@ CogitAbstractStack >> restoreSimStackAtMergePoint: fixup [
 	"All the execution paths reaching a merge point expect everything
 	 to be spilled on stack. Throw away all simStack optimization state."
 	self voidReceiverOptStatus.
-	self methodOrBlockNumTemps + 1 to: simStackPtr do:
+	cogit getMethodOrBlockNumTemps + 1 to: simStackPtr do:
 		[:i|
 		 (self simStackAt: i)
 			type: SSSpill;
@@ -796,7 +789,7 @@ CogitAbstractStack >> ssPop: popBoolean andCopyReg: reg [
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssPop: n popSpilled: popSpilled [
 	| spilledToPop |
-	self assert: (simStackPtr - n >= self methodOrBlockNumTemps
+	self assert: (simStackPtr - n >= cogit getMethodOrBlockNumTemps
 				or: [(self needsFrame not and: [simStackPtr - n >= 0])]).
 
 	"Pop from the simulated stack"
@@ -1026,12 +1019,12 @@ CogitAbstractStack >> stackTopIsBoolean [
 CogitAbstractStack >> tempsValidAndVolatileEntriesSpilled [
 	"Answer if the stack is valid up to, but not including, simSpillBase."
 	| culprit |
-	1 to: self methodOrBlockNumTemps do:
+	1 to: cogit getMethodOrBlockNumTemps do:
 		[:i|
 		 ((self simStackAt: i) type = SSBaseOffset) ifFalse:
 			[culprit ifNil: [culprit := i].
 			 ^false]].
-	self methodOrBlockNumTemps + 1 to: simSpillBase - 1 do:
+	cogit getMethodOrBlockNumTemps + 1 to: simSpillBase - 1 do:
 		[:i|
 		 (self simStackAt: i) spilled ifFalse:
 			[culprit ifNil: [culprit := i].
@@ -1043,19 +1036,19 @@ CogitAbstractStack >> tempsValidAndVolatileEntriesSpilled [
 CogitAbstractStack >> updateSimSpillBase [
 	"Something volatile has been pushed on the stack; update simSpillBase accordingly."
 	<inline: true>
-	self assert: ((simSpillBase > self methodOrBlockNumTemps
-				and: [simStackPtr >= self methodOrBlockNumTemps])).
+	self assert: ((simSpillBase > cogit getMethodOrBlockNumTemps
+				and: [simStackPtr >= cogit getMethodOrBlockNumTemps])).
 	simSpillBase > simStackPtr
 		ifTrue:
 			[simSpillBase := simStackPtr + 1.
-			 [simSpillBase - 1 > self methodOrBlockNumTemps
+			 [simSpillBase - 1 > cogit getMethodOrBlockNumTemps
 			   and: [(self simStackAt: simSpillBase - 1) spilled not]] whileTrue:
 				[simSpillBase := simSpillBase - 1]]
 		ifFalse:
 			[[(self simStackAt: simSpillBase) spilled
 			   and: [simSpillBase <= simStackPtr]] whileTrue:
 				[simSpillBase := simSpillBase + 1]].
-	self methodOrBlockNumTemps + 1 to: (simSpillBase - 1 min: simStackPtr) do:
+	cogit getMethodOrBlockNumTemps + 1 to: (simSpillBase - 1 min: simStackPtr) do:
 		[:i|
 		self assert: (self simStackAt: i) spilled == true].
 	self assert: (simSpillBase > simStackPtr or: [(self simStackAt: simSpillBase) spilled == false])
@@ -1076,7 +1069,7 @@ CogitAbstractStack >> voidReceiverResultRegContainsSelf [
 	| spillIndex |
 	self voidReceiverOptStatus.
 	spillIndex := 0.
-	(self methodOrBlockNumTemps + 1 max: simSpillBase) to: simStackPtr do:
+	(cogit getMethodOrBlockNumTemps + 1 max: simSpillBase) to: simStackPtr do:
 		[:i|
 		(self simStackAt: i) registerOrNone = ReceiverResultReg ifTrue:
 			[spillIndex := i]].

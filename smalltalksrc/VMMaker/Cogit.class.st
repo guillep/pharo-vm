@@ -3405,7 +3405,6 @@ Cogit >> bytecodeFixupClass [
 { #category : 'accessing' }
 Cogit >> bytecodePC [
 
-	<doNotGenerate>
 	^ bytecodePC
 ]
 
