@@ -196,6 +196,7 @@ CogitAbstractStack >> allocateVectorRegForStackEntryAt: index notConflictingWith
 	else allocate a new register not conflicting with reg mask"
 	<var: #stackEntry type: #'CogSimStackEntry *'>
 	<returnTypeC: #'signed char'>
+	<inline: true>
 	| stackEntry mask |
 	stackEntry := self ssValue: index.
 	mask := stackEntry registerMaskOrNone.
@@ -299,6 +300,7 @@ CogitAbstractStack >> cogit: aStackToRegisterMappingCogit [
 { #category : 'copying' }
 CogitAbstractStack >> copySelfTo: aRegister [
 
+	<inline: true>
 	self simSelf copyToReg: aRegister
 ]
 
@@ -462,6 +464,12 @@ CogitAbstractStack >> simSelf [
 	<returnTypeC: #'CogSimStackEntry *'>
 	<inline: true>
 	^self simStackAt: 0
+]
+
+{ #category : 'simulation stack' }
+CogitAbstractStack >> simSelfLiveRegister: aRegister [
+
+	self simSelf liveRegister: aRegister
 ]
 
 { #category : 'accessing' }
@@ -699,6 +707,7 @@ CogitAbstractStack >> ssAllocateRequiredReg: requiredReg upThrough: stackPtr [
 
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssAllocateRequiredRegMask: requiredRegsMask upThrough: stackPtr [
+	<inline: true>
 	| lastRequired lastRequiredNative liveRegs |
 	lastRequired := -1.
 	lastRequiredNative := -1.
@@ -827,6 +836,7 @@ CogitAbstractStack >> ssPopTopToReg: aRegister [
 { #category : 'mapped inline primitive generators - vectorial' }
 CogitAbstractStack >> ssPopTopToVectorReg: aVectorRegister [
 
+	<inline: true>
 	self ssTop moveToVectorReg: aVectorRegister.
 	self ssPop: 1
 ]
@@ -907,6 +917,7 @@ CogitAbstractStack >> ssPushRegister: reg [
 
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssPushVectorRegister: reg [
+	<inline: true>
 	self ssPush: 1.
 	self ssTop
 		type: SSVectorRegister;
@@ -983,6 +994,7 @@ CogitAbstractStack >> ssStorePop: popBoolean toPreferredReg: preferredReg [
 
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssTop [
+	<inline: true>
 	<returnTypeC: #'CogSimStackEntry *'>
 	^self simStackAt: simStackPtr
 ]

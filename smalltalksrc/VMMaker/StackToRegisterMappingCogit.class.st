@@ -947,16 +947,18 @@ StackToRegisterMappingCogit >> ensureNonMergeFixupAt: targetPC [
 
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> ensureReceiverResultRegContainsSelf [
+
 	needsFrame
-		ifTrue:
-			[self receiverIsInReceiverResultReg ifFalse:
-				[currentAbstractStack  ssAllocateRequiredReg: ReceiverResultReg.
-				 self putSelfInReceiverResultReg.
-				 currentAbstractStack  simSelf liveRegister: ReceiverResultReg]]
-		ifFalse:
-			[self assert: (currentAbstractStack  simSelf type = SSRegister
-						  and: [currentAbstractStack  simSelf registerr = ReceiverResultReg
-						  and: [self receiverIsInReceiverResultReg]])]
+		ifTrue: [
+			self receiverIsInReceiverResultReg ifFalse: [
+				currentAbstractStack ssAllocateRequiredReg: ReceiverResultReg.
+				self putSelfInReceiverResultReg.
+				currentAbstractStack simSelfLiveRegister: ReceiverResultReg ] ]
+		ifFalse: [
+			self assert:
+				(currentAbstractStack simSelf type = SSRegister and: [
+					 currentAbstractStack simSelf registerr = ReceiverResultReg and: [
+						 self receiverIsInReceiverResultReg ] ]) ]
 ]
 
 { #category : 'peephole optimizations' }
