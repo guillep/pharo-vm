@@ -154,8 +154,12 @@ Class {
 
 { #category : 'translation' }
 StackToRegisterMappingCogit class >> ancilliaryClasses [
-	^super ancilliaryClasses,
-	  { self basicNew simStackEntryClass. self basicNew bytecodeFixupClass. CogSSOptStatus }
+
+	^ super ancilliaryClasses , {
+		  CogitAbstractStack.
+		  CogitAbstractStack basicNew simStackEntryClass.
+		  self basicNew bytecodeFixupClass.
+		  CogSSOptStatus }
 ]
 
 { #category : 'documentation' }
@@ -216,6 +220,8 @@ StackToRegisterMappingCogit class >> callingConvention [
 { #category : 'translation' }
 StackToRegisterMappingCogit class >> declareCVarsIn: aCodeGen [
 	aCodeGen
+		var: #currentAbstractStack
+			type: #implicit;
 		var: #methodAbortTrampolines
 			declareC: 'sqInt methodAbortTrampolines[4]';
 		var: #picAbortTrampolines
@@ -237,7 +243,7 @@ StackToRegisterMappingCogit class >> declareCVarsIn: aCodeGen [
 		var: #realCECallCogCodePopReceiverArg1Arg0Regs
 			declareC: 'void (*realCECallCogCodePopReceiverArg1Arg0Regs)(void)';
 		var: 'simStack'
-			declareC: 'SimStackEntry simStack[', self simStackSlots asString, ']';
+			declareC: 'SimStackEntry simStack[', CogitAbstractStack basicNew simStackSlots asString, ']';
 		var: 'simSelf'
 			type: #CogSimStackEntry;
 		var: #optStatus
@@ -414,7 +420,7 @@ StackToRegisterMappingCogit class >> isAcceptableAncilliaryClass: aClass [
 		ifTrue: [aClass == self basicNew bytecodeFixupClass]
 		ifFalse:
 			[(aClass includesBehavior: CogSimStackEntry)
-				ifTrue: [aClass == self basicNew simStackEntryClass]
+				ifTrue: [aClass == CogitAbstractStack basicNew simStackEntryClass]
 				ifFalse: [true]]
 ]
 
@@ -472,11 +478,6 @@ StackToRegisterMappingCogit class >> shouldGenerateTypedefFor: aStructClass [
 	"Hack to work-around mutliple definitions.  Sometimes a type has been defined in an include."
 	^aStructClass ~~ CogBytecodeFixup "overridden by CogSSBytecodeFixup"
 	  and: [super shouldGenerateTypedefFor: aStructClass]
-]
-
-{ #category : 'translation' }
-StackToRegisterMappingCogit class >> simStackSlots [
-	^ self basicNew simStackSlots
 ]
 
 { #category : 'documentation' }
@@ -700,7 +701,6 @@ StackToRegisterMappingCogit >> compileAbstractInstructionsFrom: start through: e
 	 result := deadCode
 				ifTrue: [self mapDeadDescriptorIfNeeded: descriptor]
 				ifFalse: [self perform: descriptor generator].
-			self haltIf: result isInteger not.
 	 result = 0 ifTrue: [self assertExtsAreConsumed: descriptor].
 	 self patchFixupTargetIfNeeded: fixup nextOpcodeIndex: nextOpcodeIndex.
 	 self maybeDumpLiterals: descriptor.
@@ -1578,9 +1578,9 @@ StackToRegisterMappingCogit >> genJumpIf: boolean to: targetBytecodePC [
 	<var: #ok type: #'AbstractInstruction *'>
 	| desc fixup ok eventualTarget |
 	eventualTarget := self eventualTargetOf: targetBytecodePC.
-	currentAbstractStack  ssSpillStackExceptTop: 1.
+	currentAbstractStack ssSpillStackExceptTop: 1.
 	desc := currentAbstractStack  ssTop.
-	(currentAbstractStack  stackEntryIsBoolean: desc) ifTrue: [
+	(currentAbstractStack stackEntryIsBoolean: desc) ifTrue: [
 		"Must arrange there's a fixup at the target whether it is jumped to or
 		not so that the simStackPtr can be kept correct."
 		currentAbstractStack  ssPop: 1.
@@ -3292,6 +3292,7 @@ StackToRegisterMappingCogit >> mergeIncomingBranchStack: incomingBranchStack [
 	"For now assume one is a fallthrough branch"
 
 	| fallthroughBranchStack |
+	<doNotGenerate>
 	self assert:
 		incomingBranchStack ssSize = self currentAbstractStack ssSize.
 
@@ -3352,25 +3353,25 @@ StackToRegisterMappingCogit >> mergeIncomingRegister: incomingDescriptor into: f
 			ifFalse: [ self swapRegisterInLiveEntry: liveEntry by: newRegister ] ].
 
 	fallthroughDescriptor type caseOf: {
-			(SSBaseOffset -> [ "R1 + M1""Generate R1 + R1 := LOAD [ M1 ]"
+			([SSBaseOffset] -> [ "R1 + M1""Generate R1 + R1 := LOAD [ M1 ]"
 			 self
 				 MoveMw: fallthroughDescriptor offset
 				 r: fallthroughDescriptor base
 				 R: incomingDescriptor registerr ]).
-			(SSSpill -> [
+			([SSSpill] -> [
 			 self deny:
 				 (fallthroughBranchStack isLiveRegister:
 					  incomingDescriptor registerr).
 			 "R1 + SpillSlot""Generate R1 + R1 := Pop"
 			 self PopR: incomingDescriptor registerr ]).
-			(SSRegister -> [
+			([SSRegister] -> [
 			 incomingDescriptor registerr = fallthroughDescriptor registerr
 				 ifTrue: [ "Both the same register, do nothing" ]
 				 ifFalse: [ "R1 + R2""Generate R1 + R1 := R2"
 					 self
 						 MoveR: fallthroughDescriptor registerr
 						 R: incomingDescriptor registerr ] ]).
-			(SSConstant -> [ "Register + Constant""Generate R1 + R1 := C"
+			([SSConstant] -> [ "Register + Constant""Generate R1 + R1 := C"
 			 fallthroughDescriptor spilled
 				 ifTrue: [ self PopR: incomingDescriptor registerr ]
 				 ifFalse: [
@@ -3399,7 +3400,7 @@ StackToRegisterMappingCogit >> mergeIncomingSpilledSlot: incomingDescriptor into
 	"
 
 	fallthroughDescriptor type caseOf: {
-			(SSConstant -> [ "Register + Constant"
+			([SSConstant] -> [ "Register + Constant"
 			 fallthroughDescriptor spilled
 				 ifTrue: [ "Do nothing!" ]
 				 ifFalse: [
@@ -3408,7 +3409,7 @@ StackToRegisterMappingCogit >> mergeIncomingSpilledSlot: incomingDescriptor into
 						 MoveR: TempReg
 						 Mw: incomingDescriptor offset
 						 r: incomingDescriptor base ] ]).
-			(SSBaseOffset
+			([SSBaseOffset]
 			 -> [ "If spilled, do nothing. Otherwise generate move the value to the stack"
 				 fallthroughDescriptor spilled ifFalse: [
 					 self
@@ -3419,8 +3420,8 @@ StackToRegisterMappingCogit >> mergeIncomingSpilledSlot: incomingDescriptor into
 						 MoveR: TempReg
 						 Mw: incomingDescriptor offset
 						 r: incomingDescriptor base ] ]).
-			(SSSpill -> [ "Do nothing!" ]).
-			(SSRegister -> [
+			([SSSpill] -> [ "Do nothing!" ]).
+			([SSRegister] -> [
 			 self
 				 MoveR: fallthroughDescriptor registerr
 				 Mw: incomingDescriptor offset
@@ -3520,6 +3521,7 @@ StackToRegisterMappingCogit >> methodOrBlockNumArgs [
 { #category : 'accessing' }
 StackToRegisterMappingCogit >> methodOrBlockNumTemps [
 
+	<doNotGenerate>
 	^ methodOrBlockNumTemps
 ]
 
@@ -3938,12 +3940,6 @@ StackToRegisterMappingCogit >> setInterpreter: aCoInterpreter [
 	pushNilSizeFunction := self class pushNilSizeFunction
 ]
 
-{ #category : 'accessing' }
-StackToRegisterMappingCogit >> simStackAt: anInteger [
-
-	^ currentAbstractStack simStackAt: anInteger
-]
-
 { #category : 'testing' }
 StackToRegisterMappingCogit >> sistaNeedsStoreCheck [
 	<inline: true>
@@ -4087,12 +4083,4 @@ StackToRegisterMappingCogit >> v4PushNilSize: aMethodObj numInitialNils: numInit
 { #category : 'testing' }
 StackToRegisterMappingCogit >> violatesEnsureSpilledSpillAssert [
 	^true
-]
-
-{ #category : 'bytecode generator support' }
-StackToRegisterMappingCogit >> voidReceiverOptStatus [
-	"Used to mark ReceiverResultReg as dead or not containing simSelf.
-	 Used when the simStack has already been flushed, e.g. for sends."
-	<inline: true>
-	currentAbstractStack simSelf liveRegister: NoReg
 ]

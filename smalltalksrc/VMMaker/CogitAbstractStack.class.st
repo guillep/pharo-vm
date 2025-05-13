@@ -1,6 +1,6 @@
 Class {
 	#name : 'CogitAbstractStack',
-	#superclass : 'VMStructType',
+	#superclass : 'VMClass',
 	#instVars : [
 		'simStackPtr',
 		'simSpillBase',
@@ -17,6 +17,23 @@ Class {
 	#package : 'VMMaker',
 	#tag : 'JIT'
 }
+
+{ #category : 'translation' }
+CogitAbstractStack class >> instVarNamesAndTypesForTranslationDo: aBinaryBlock [
+	"Enumerate aBinaryBlock with the names and C type strings for the inst vars to include in an AbstractInstruction struct."
+
+	self filteredInstVarNames do: [ :ivn |
+		aBinaryBlock value: ivn value: (ivn caseOf: {
+					 ([ 'simStackPtr' ] -> [ #sqInt ]).
+					 ([ 'simSpillBase' ] -> [ #sqInt ]).
+					 ([ 'simStack' ] -> [ #'sqInt *' ]) }) ]
+]
+
+{ #category : 'translation' }
+CogitAbstractStack class >> typeForSelf [
+
+	^ #implicit
+]
 
 { #category : 'bytecode generator support' }
 CogitAbstractStack >> allocateEqualsEqualsRegistersArgNeedsReg: argNeedsReg rcvrNeedsReg: rcvrNeedsReg into: binaryBlock [
@@ -261,6 +278,7 @@ CogitAbstractStack >> availableRegOrNoneNotConflictingWith: regMask [
 { #category : 'accessing' }
 CogitAbstractStack >> bytecodePC [
 
+	<doNotGenerate>
 	^ cogit bytecodePC
 ]
 
@@ -333,12 +351,13 @@ CogitAbstractStack >> isLiveRegister: aRegister [
 CogitAbstractStack >> liveEntryForRegister: aRegister above: anEntry [
 	"Return the entry using the live register or 0 if the register is not live (thus no entry)"
 
+	<returnTypeC: #'CogSimStackEntry *'>
 	| aboveIndex |
 	aboveIndex := self ssSize - (simStack object indexOf: anEntry).
 	(simSpillBase max: 0) to: simStackPtr - aboveIndex - 1 do: [ :i |
-		| entry |
-		entry := self simStackAt: i.
-		entry usedRegister = aRegister ifTrue: [ ^ entry ] ].
+		| maybeLiveEntry |
+		maybeLiveEntry := self simStackAt: i.
+		maybeLiveEntry usedRegister = aRegister ifTrue: [ ^ maybeLiveEntry ] ].
 	^ 0
 ]
 
@@ -383,68 +402,17 @@ CogitAbstractStack >> liveVectorRegisters [
 	^ regsSet
 ]
 
-{ #category : 'simulation stack' }
-CogitAbstractStack >> marshallSendArguments: numArgs [
-	"Spill everything on the simulated stack that needs spilling (that below receiver and arguments).
-	 Marshall receiver and arguments to stack and/or registers depending on arg count.
-	 If the args don't fit in registers push receiver and args (spill everything), but still assign
-	 the receiver to ReceiverResultReg."
-
-	self ssSpillStackExceptTop: numArgs + 1.
-	numArgs > self numRegArgs
-		ifTrue: [ "If there are no spills and no references to ReceiverResultReg
-			 the fetch of ReceiverResultReg from the stack can be avoided
-			 by assigning directly to ReceiverResultReg and pushing it."
-			| numSpilled anyRefs |
-			numSpilled := self numberOfSpillsInTopNItems: numArgs + 1.
-			anyRefs := self anyReferencesToRegister: ReceiverResultReg inTopNItems: numArgs + 1.
-			(numSpilled > 0 or: [ anyRefs ])
-				ifTrue: [
-					self ssSpillStack.
-					(self simStackAt: simStackPtr - numArgs) copyToReg: ReceiverResultReg ]
-				ifFalse: [
-					(self simStackAt: simStackPtr - numArgs)
-						copyToReg: ReceiverResultReg;
-						type: SSRegister;
-						registerr: ReceiverResultReg.
-					self ssSpillStack ].
-			
-			"Pop from the stack, so that subsequent compilation in this unit make as if they were popped.
-			However, but do not discard the entries in the runtime stack (do not generate pops).
-			It's the callee responsibility of popping them."
-			^ self ssPop: numArgs + 1 popSpilled: false ]
-		ifFalse: [
-			"Move the args to the register arguments, being careful to do
-			 so last to first so e.g. previous contents don't get overwritten.
-			 Also check for any arg registers in use by other args."
-			numArgs > 0 ifTrue: [
-				(self numRegArgs > 1 and: [ numArgs > 1 ])
-					ifTrue: [
-						self ssAllocateRequiredReg: Arg0Reg upThrough: simStackPtr - 2.
-						self ssAllocateRequiredReg: Arg1Reg upThrough: simStackPtr - 1 ]
-					ifFalse: [ self ssAllocateRequiredReg: Arg0Reg upThrough: simStackPtr - 1 ] ].
-
-			(self numRegArgs > 1 and: [ numArgs > 1 ]) ifTrue: [ (self simStackAt: simStackPtr) copyToReg: Arg1Reg ].
-
-			numArgs > 0 ifTrue: [ (self simStackAt: simStackPtr - numArgs + 1) copyToReg: Arg0Reg ].
-			(self simStackAt: simStackPtr - numArgs) copyToReg: ReceiverResultReg.
-
-			"Pop from the stack, so that subsequent compilation in this unit make as if they were popped.
-			Here, DO discard the entries in the runtime stack.
-			The calling convention dictates that in this case all receiver/args pass through registers and no stack is involved.
-			If we don't pop from the runtime stack, it will get desynchronised"
-			self ssPop: numArgs + 1 ]
-]
-
 { #category : 'accessing' }
 CogitAbstractStack >> methodOrBlockNumTemps [
 
+	<doNotGenerate>
 	^ cogit methodOrBlockNumTemps
 ]
 
 { #category : 'testing' }
 CogitAbstractStack >> needsFrame [
-	
+
+	<doNotGenerate>
 	^ cogit needsFrame
 ]
 
@@ -526,11 +494,15 @@ CogitAbstractStack >> simStackEntryClass [
 
 { #category : 'accessing' }
 CogitAbstractStack >> simStackPtr [
+
+	<doNotGenerate>
 	^ simStackPtr
 ]
 
 { #category : 'accessing' }
-CogitAbstractStack >> simStackPtr: anInteger [ 
+CogitAbstractStack >> simStackPtr: anInteger [
+
+	<doNotGenerate>
 	simStackPtr := anInteger
 ]
 
@@ -1112,5 +1084,6 @@ CogitAbstractStack >> voidReceiverResultRegContainsSelf [
 { #category : 'accessing' }
 CogitAbstractStack >> wordSize [
 
+	<doNotGenerate>
 	^ cogit objectMemory wordSize
 ]

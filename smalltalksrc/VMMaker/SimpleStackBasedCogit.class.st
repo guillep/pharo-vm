@@ -3294,9 +3294,3 @@ SimpleStackBasedCogit >> voidCogCompiledCode [
 		externalPrimCallOffsets at: i put: nil.
 		externalSetPrimOffsets at: i put: nil]
 ]
-
-{ #category : 'bytecode generator support' }
-SimpleStackBasedCogit >> voidReceiverOptStatus [
-	"No op in this cogit. Provided for compatibility with the cleverer subclasses."
-	<inline: true>
-]
