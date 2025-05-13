@@ -3832,8 +3832,9 @@ StackToRegisterMappingCogit >> pushNilSize: aMethodObj numInitialNils: numInitia
 
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> putSelfInReceiverResultReg [
+
 	<inline: true>
-	 currentAbstractStack  simSelf copyToReg: ReceiverResultReg
+	currentAbstractStack copySelfTo: ReceiverResultReg
 ]
 
 { #category : 'bytecode generator support' }

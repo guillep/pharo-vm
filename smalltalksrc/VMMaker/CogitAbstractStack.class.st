@@ -296,6 +296,12 @@ CogitAbstractStack >> cogit: aStackToRegisterMappingCogit [
 	cogit := aStackToRegisterMappingCogit
 ]
 
+{ #category : 'copying' }
+CogitAbstractStack >> copySelfTo: aRegister [
+
+	self simSelf copyToReg: aRegister
+]
+
 { #category : 'simulation stack' }
 CogitAbstractStack >> freeAnyFloatRegNotConflictingWith: regMask [
 	"Spill the closest register on stack not conflicting with regMask. 
