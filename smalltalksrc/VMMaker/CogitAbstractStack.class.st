@@ -284,12 +284,15 @@ CogitAbstractStack >> bytecodePC [
 
 { #category : 'accessing' }
 CogitAbstractStack >> cogit [
+
+	<doNotGenerate>
 	^ cogit
 ]
 
 { #category : 'accessing' }
-CogitAbstractStack >> cogit: aStackToRegisterMappingCogit [ 
-	
+CogitAbstractStack >> cogit: aStackToRegisterMappingCogit [
+
+	<doNotGenerate>
 	cogit := aStackToRegisterMappingCogit
 ]
 
@@ -720,8 +723,8 @@ CogitAbstractStack >> ssFlushTo: index [
 	<inline: true>
 	self assert: self tempsValidAndVolatileEntriesSpilled.
 	simSpillBase <= index ifTrue: [
-		(((simSpillBase max: self methodOrBlockNumTemps + 1) min: simStackPtr)
-			 min: index) to: index do: [ :i |
+		(((simSpillBase max: cogit getMethodOrBlockNumTemps + 1) min:
+			  simStackPtr) min: index) to: index do: [ :i |
 			self assert: self needsFrame.
 			self ssSpillEntryAt: i ].
 		simSpillBase := index + 1 ]

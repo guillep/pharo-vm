@@ -7990,6 +7990,12 @@ Cogit >> getMethodCompilationMSecs [
 ]
 
 { #category : 'accessing' }
+Cogit >> getMethodOrBlockNumTemps [
+
+	^ methodOrBlockNumArgs
+]
+
+{ #category : 'accessing' }
 Cogit >> getOpcodeIndex [
 	"Access for the literal manager."
 	^opcodeIndex
