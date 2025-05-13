@@ -460,6 +460,7 @@ CogitAbstractStack >> restoreSimStackAtMergePoint: fixup [
 CogitAbstractStack >> simSelf [
 	<cmacro: '() simStack'>
 	<returnTypeC: #'CogSimStackEntry *'>
+	<inline: true>
 	^self simStackAt: 0
 ]
 
@@ -870,6 +871,7 @@ CogitAbstractStack >> ssPushConstant: literal [
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssPushDesc: simStackEntry [
 	<var: #simStackEntry type: #SimStackEntry>
+	<inline: true>
 	self cCode:
 			[simStackEntry type = SSSpill ifTrue:
 				[simStackEntry type: SSBaseOffset].

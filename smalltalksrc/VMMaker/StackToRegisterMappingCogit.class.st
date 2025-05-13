@@ -887,7 +887,7 @@ StackToRegisterMappingCogit >> duplicateTopBytecode [
 	| desc |
 	<var: #desc type: #SimStackEntry>
 	desc := currentAbstractStack  ssTopDescriptor.
-	^currentAbstractStack  ssPushDesc: desc
+	^currentAbstractStack ssPushDesc: desc
 ]
 
 { #category : 'compile abstract instructions' }
