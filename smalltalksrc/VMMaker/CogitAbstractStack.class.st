@@ -254,7 +254,7 @@ CogitAbstractStack >> availableRegOrNoneNotConflictingWith: regMask [
 	"If there's a free register, answer it, otherwise answer NoReg."
 
 	<inline: true>
-	^ self backEnd availableRegisterOrNoneFor:
+	^ cogit backEnd availableRegisterOrNoneFor:
 		  (self liveRegisters bitOr: regMask)
 ]
 
@@ -321,6 +321,25 @@ CogitAbstractStack >> initialize [
 
 	simStackPtr := 0.
 	simSpillBase := simStackPtr + 1
+]
+
+{ #category : 'simulation stack' }
+CogitAbstractStack >> isLiveRegister: aRegister [
+
+	^ self liveRegisters anyMask: (cogit registerMaskFor: aRegister)
+]
+
+{ #category : 'simulation stack' }
+CogitAbstractStack >> liveEntryForRegister: aRegister above: anEntry [
+	"Return the entry using the live register or 0 if the register is not live (thus no entry)"
+
+	| aboveIndex |
+	aboveIndex := self ssSize - (simStack object indexOf: anEntry).
+	(simSpillBase max: 0) to: simStackPtr - aboveIndex - 1 do: [ :i |
+		| entry |
+		entry := self simStackAt: i.
+		entry usedRegister = aRegister ifTrue: [ ^ entry ] ].
+	^ 0
 ]
 
 { #category : 'simulation stack' }
@@ -429,12 +448,25 @@ CogitAbstractStack >> needsFrame [
 	^ cogit needsFrame
 ]
 
+{ #category : 'abstract stack' }
+CogitAbstractStack >> newFreshRegister [
+
+	^ self availableRegOrNoneNotConflictingWith: self liveRegisters
+]
+
 { #category : 'simulation stack' }
 CogitAbstractStack >> numberOfSpillsInTopNItems: n [
 	simStackPtr to: simStackPtr - n + 1 by: -1 do:
 		[:i| (self simStackAt: i) type = SSSpill ifTrue:
 			[^n - (simStackPtr - i)]].
 	^0
+]
+
+{ #category : 'copying' }
+CogitAbstractStack >> postCopy [
+
+	super postCopy.
+	simStack := CArrayAccessor on: (simStack object collect: [ :e | e copy ])
 ]
 
 { #category : 'abstract stack' }
@@ -459,6 +491,12 @@ CogitAbstractStack >> simSelf [
 	<cmacro: '() simStack'>
 	<returnTypeC: #'CogSimStackEntry *'>
 	^self simStackAt: 0
+]
+
+{ #category : 'accessing' }
+CogitAbstractStack >> simSpillBase [
+
+	^ simSpillBase
 ]
 
 { #category : 'accessing' }

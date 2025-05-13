@@ -821,6 +821,12 @@ StackToRegisterMappingCogit >> compileTwoPathFramelessInit [
 	jumpOld jmpTarget: self Label
 ]
 
+{ #category : 'copying' }
+StackToRegisterMappingCogit >> copyAbstractStack [
+	
+	currentAbstractStack := currentAbstractStack copy
+]
+
 { #category : 'accessing' }
 StackToRegisterMappingCogit >> currentAbstractStack [
 	^ currentAbstractStack
@@ -3279,6 +3285,154 @@ StackToRegisterMappingCogit >> maybeSetCounterIndex: value [
 ]
 
 { #category : 'abstract stack' }
+StackToRegisterMappingCogit >> mergeIncomingBranchStack: incomingBranchStack [
+	"Merge element to element the abstract stack of both stacks incoming from branches.
+	Both should have the same size"
+
+	"For now assume one is a fallthrough branch"
+
+	| fallthroughBranchStack |
+	self assert:
+		incomingBranchStack ssSize = self currentAbstractStack ssSize.
+
+	"Merge element to element.
+	The fallthrough stack has been register allocated already.
+	So each stack element is either a register or a spilled slot."
+	fallthroughBranchStack := self currentAbstractStack.
+	0 to: incomingBranchStack ssSize - 1 do: [ :index |
+		| fallthroughDescriptor incomingDescriptor |
+		fallthroughDescriptor := fallthroughBranchStack ssValue: index.
+		incomingDescriptor := incomingBranchStack ssValue: index.
+
+		self assert: (incomingDescriptor spilled or: [
+				 incomingDescriptor type = SSRegister ]).
+		incomingDescriptor type = SSRegister
+			ifTrue: [
+				self
+					mergeIncomingRegister: incomingDescriptor
+					into: fallthroughDescriptor
+					inStack: fallthroughBranchStack ]
+			ifFalse: [
+				self
+					mergeIncomingSpilledSlot: incomingDescriptor
+					into: fallthroughDescriptor
+					inStack: fallthroughBranchStack ] ].
+
+	"Puth both spilling at the same level"
+	fallthroughBranchStack simSpillBase: incomingBranchStack simSpillBase
+]
+
+{ #category : 'abstract stack' }
+StackToRegisterMappingCogit >> mergeIncomingRegister: incomingDescriptor into: fallthroughDescriptor inStack: fallthroughBranchStack [
+	"
+	FD | ID | R  + gen
+	----------------------
+	-- normal elements
+	R1 | C  | R1 + R1 := C (given R1 is live, otherwise swap entries)
+	R1 | R1 | R1 + /
+	R1 | R2 | R1 + R1 := R2
+	R1 | M  | R1 + R1 := Load [ M ] (given R1 is live, otherwise swap entries)
+	
+	-- spilled elements
+	R1 | Sp | R1 + R1 := Pop
+	R1 | Cs | R1 + R1 := Pop
+	"
+
+	| liveEntry |
+	liveEntry := fallthroughBranchStack
+		             liveEntryForRegister: incomingDescriptor registerr
+		             above: fallthroughDescriptor.
+	liveEntry ~= 0 ifTrue: [
+		| newRegister |
+		"Get a register and swap them"
+		newRegister := fallthroughBranchStack newFreshRegister.
+
+		newRegister = NoReg
+			ifTrue: [ "If we run out of registers..." self halt ]
+			ifFalse: [ self swapRegisterInLiveEntry: liveEntry by: newRegister ] ].
+
+	fallthroughDescriptor type caseOf: {
+			(SSBaseOffset -> [ "R1 + M1""Generate R1 + R1 := LOAD [ M1 ]"
+			 self
+				 MoveMw: fallthroughDescriptor offset
+				 r: fallthroughDescriptor base
+				 R: incomingDescriptor registerr ]).
+			(SSSpill -> [
+			 self deny:
+				 (fallthroughBranchStack isLiveRegister:
+					  incomingDescriptor registerr).
+			 "R1 + SpillSlot""Generate R1 + R1 := Pop"
+			 self PopR: incomingDescriptor registerr ]).
+			(SSRegister -> [
+			 incomingDescriptor registerr = fallthroughDescriptor registerr
+				 ifTrue: [ "Both the same register, do nothing" ]
+				 ifFalse: [ "R1 + R2""Generate R1 + R1 := R2"
+					 self
+						 MoveR: fallthroughDescriptor registerr
+						 R: incomingDescriptor registerr ] ]).
+			(SSConstant -> [ "Register + Constant""Generate R1 + R1 := C"
+			 fallthroughDescriptor spilled
+				 ifTrue: [ self PopR: incomingDescriptor registerr ]
+				 ifFalse: [
+					 self
+						 MoveCq: fallthroughDescriptor constant
+						 R: incomingDescriptor registerr ] ]) }.
+	"Update the fallthrough stack (the current one) with the register allocation info from the incoming branch"
+	fallthroughDescriptor type: SSRegister.
+	fallthroughDescriptor spilled: false.
+	fallthroughDescriptor registerr: incomingDescriptor registerr
+]
+
+{ #category : 'abstract stack' }
+StackToRegisterMappingCogit >> mergeIncomingSpilledSlot: incomingDescriptor into: fallthroughDescriptor inStack: fallthroughBranchStack [
+	"
+	FD | ID | R  + gen
+	----------------------
+	-- normal elements
+	Sp | C  | M1 + Temp := C, Store Temp [ M ]
+	Sp | R  | M1 + Store R [ M ]
+	Sp | M  | M1 + Temp := Load [ M2 ], Store Temp [ M1 ]
+	
+	-- spilled elements
+	Sp | Sp | Sp + /
+	Sp | Cs | Sp + /
+	"
+
+	fallthroughDescriptor type caseOf: {
+			(SSConstant -> [ "Register + Constant"
+			 fallthroughDescriptor spilled
+				 ifTrue: [ "Do nothing!" ]
+				 ifFalse: [
+					 self MoveCq: fallthroughDescriptor constant R: TempReg.
+					 self
+						 MoveR: TempReg
+						 Mw: incomingDescriptor offset
+						 r: incomingDescriptor base ] ]).
+			(SSBaseOffset
+			 -> [ "If spilled, do nothing. Otherwise generate move the value to the stack"
+				 fallthroughDescriptor spilled ifFalse: [
+					 self
+						 MoveMw: fallthroughDescriptor offset
+						 r: fallthroughDescriptor base
+						 R: TempReg.
+					 self
+						 MoveR: TempReg
+						 Mw: incomingDescriptor offset
+						 r: incomingDescriptor base ] ]).
+			(SSSpill -> [ "Do nothing!" ]).
+			(SSRegister -> [
+			 self
+				 MoveR: fallthroughDescriptor registerr
+				 Mw: incomingDescriptor offset
+				 r: incomingDescriptor base ]) }.
+	"Update the fallthrough stack (the current one) with the register allocation info from the incoming branch"
+	fallthroughDescriptor type: SSSpill.
+	fallthroughDescriptor spilled: true.
+	fallthroughDescriptor registerr: incomingDescriptor base.
+	fallthroughDescriptor offset: incomingDescriptor offset
+]
+
+{ #category : 'abstract stack' }
 StackToRegisterMappingCogit >> mergeWithFixupIfRequired: fixup [
 	"If this bytecode has a fixup, some kind of merge needs to be done. There are 4 cases:
 		1) the bytecode has no fixup (fixup isNotAFixup)
@@ -3812,6 +3966,19 @@ StackToRegisterMappingCogit >> sistaV1PushNilSize: aMethodObj numInitialNils: nu
 	"230		11100110	iiiiiiii		PushNClosureTemps iiiiiiii"
 	<inline: true>
 	^numInitialNils
+]
+
+{ #category : 'register allocation' }
+StackToRegisterMappingCogit >> swapRegisterInLiveEntry: aCogSimStackEntry by: aRegisterID [
+	
+	"The entry aCogSimStackEntry uses a register that we need to free.
+	We need to swap the entry by the register given as argument.
+	This entails:
+		- generating code for the swap
+		- modifying the entry with the new register"
+
+	self MoveR: aCogSimStackEntry usedRegister R: aRegisterID.
+	aCogSimStackEntry registerr: aRegisterID
 ]
 
 { #category : 'simulation only' }

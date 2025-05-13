@@ -364,3 +364,9 @@ CogSimStackEntry >> type: anObject [
 
 	^type := anObject
 ]
+
+{ #category : 'accessing' }
+CogSimStackEntry >> usedRegister [
+
+	^ registerr
+]
