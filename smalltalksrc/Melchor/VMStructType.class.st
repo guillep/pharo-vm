@@ -4,9 +4,8 @@ I am an absract superclass for classes which map to simple structs in C,  Right 
 Class {
 	#name : 'VMStructType',
 	#superclass : 'SlangStructType',
-	#category : 'VMMaker-Support',
-	#package : 'VMMaker',
-	#tag : 'Support'
+	#category : 'Melchor',
+	#package : 'Melchor'
 }
 
 { #category : 'accessing class hierarchy' }
