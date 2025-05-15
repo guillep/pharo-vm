@@ -1494,11 +1494,6 @@ StackInterpreter class >> namesOfVariablesToLocalize [
 ]
 
 { #category : 'translation' }
-StackInterpreter class >> needsCogit [
-	^false
-]
-
-{ #category : 'translation' }
 StackInterpreter class >> preGenerationHook: aCCodeGen [
 	"Perform any last-minute changes to the code generator immediately
 	 before it performs code analysis and generation.  In this case, make
