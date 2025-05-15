@@ -404,9 +404,7 @@ CogitAbstractStack >> restoreSimStackAtMergePoint: fixup [
 
 { #category : 'accessing' }
 CogitAbstractStack >> simSelf [
-	<cmacro: '() simStack'>
 	<returnTypeC: #'CogSimStackEntry *'>
-	<inline: true>
 	^self simStackAt: 0
 ]
 
