@@ -26,7 +26,7 @@ CogitAbstractStack class >> instVarNamesAndTypesForTranslationDo: aBinaryBlock [
 		aBinaryBlock value: ivn value: (ivn caseOf: {
 					 ([ 'simStackPtr' ] -> [ #sqInt ]).
 					 ([ 'simSpillBase' ] -> [ #sqInt ]).
-					 ([ 'simStack' ] -> [ #'sqInt *' ]) }) ]
+					 ([ 'simStack' ] -> [ {'SimStackEntry' . '[', CogitAbstractStack basicNew simStackSlots asString, ']'} ]) }) ]
 ]
 
 { #category : 'bytecode generator support' }
