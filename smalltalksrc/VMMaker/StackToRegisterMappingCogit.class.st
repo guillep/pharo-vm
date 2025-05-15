@@ -3140,10 +3140,10 @@ StackToRegisterMappingCogit >> initSimStackForFramelessMethod: startpc [
 { #category : 'abstract stack' }
 StackToRegisterMappingCogit >> initSimStackPointer: wat [
 
-	currentAbstractStack := CogitAbstractStack basicNew
-		                        cogit: self;
-		                        initialize;
-		                        yourself
+	self simulationOnly: [currentAbstractStack := CogitAbstractStack basicNew
+	                        cogit: self;
+	                        initialize;
+	                        yourself]
 ]
 
 { #category : 'abstract stack' }
@@ -3483,14 +3483,14 @@ StackToRegisterMappingCogit >> mergeWithFixupIfRequired: fixup [
 			 self assert: (fixup simStackPtr >= methodOrBlockNumTemps).
 			 currentAbstractStack theSimStackPtr: fixup simStackPtr ]
 		ifFalse: "case 4"
-			[currentAbstractStack  ssSpillStack].
+			[currentAbstractStack ssSpillStack].
 
 	"cases 3 and 4"
 	deadCode := false.
 	fixup isBackwardBranchFixup ifTrue:
-		[fixup simStackPtr: currentAbstractStack simStackPtr ].
+		[fixup simStackPtr: currentAbstractStack theSimStackPtr ].
 	fixup targetInstruction: self Label.
-	self assert: currentAbstractStack simStackPtr = fixup simStackPtr.
+	self assert: currentAbstractStack theSimStackPtr = fixup simStackPtr.
 	self cCode: '' inSmalltalk:
 		[self assert: fixup simStackPtr = (self debugStackPointerFor: bytecodePC)].
 	currentAbstractStack restoreSimStackAtMergePoint: fixup.
