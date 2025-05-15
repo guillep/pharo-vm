@@ -898,7 +898,7 @@ StackToRegisterMappingCogit >> duplicateTopBytecode [
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> ensureFixupAt: targetPC [
 	
-	^ self ensureFixupAt: targetPC withStackPointer: currentAbstractStack simStackPtr
+	^ self ensureFixupAt: targetPC withStackPointer: currentAbstractStack theSimStackPtr
 ]
 
 { #category : 'compile abstract instructions' }
@@ -1430,16 +1430,16 @@ StackToRegisterMappingCogit >> genGenericStorePop: popBoolean MaybeContextSlotIn
 	self assert: needsFrame.
 	
 	"Allocate ClassReg and SenNumArgsReg for the trampoline calls."
-	self ssAllocateCallReg: SendNumArgsReg.
+	currentAbstractStack ssAllocateCallReg: SendNumArgsReg.
 	"Avoid allocating ClassReg if at the top the stack, to avoid extra push/pops, given that we are going to pop it next"
 	currentAbstractStack
 		ssAllocateCallReg: ClassReg
-		upThrough: currentAbstractStack simStackPtr - 1.
-	self ssStoreAndReplacePop: popBoolean toReg: ClassReg.
+		upThrough: currentAbstractStack theSimStackPtr - 1.
+	currentAbstractStack ssStoreAndReplacePop: popBoolean toReg: ClassReg.
 	
 	"Flush the rest of the stack now that all stack manipulations have been done.
 	This guarantees that the stack is all spilled when jumping to the potential trampolines"
-	self ssSpillStack.
+	currentAbstractStack ssSpillStack.
 
 	self 
 		cppIf: IMMUTABILITY
@@ -1482,7 +1482,7 @@ StackToRegisterMappingCogit >> genGenericStorePop: popBoolean slotIndex: slotInd
 	<inline: true>
 	self cppIf: IMMUTABILITY ifTrue:
 		[needsImmCheck ifTrue: 
-			[currentAbstractStack ssAllocateRequiredReg: ClassReg upThrough: currentAbstractStack simStackPtr - 1. "If already classReg don't spill it"
+			[currentAbstractStack ssAllocateRequiredReg: ClassReg upThrough: currentAbstractStack theSimStackPtr - 1. "If already classReg don't spill it"
 			 "we replace the top value for the flush"
 			 currentAbstractStack ssStoreAndReplacePop: popBoolean toReg: ClassReg.
 			 currentAbstractStack ssSpillStack.
@@ -1644,7 +1644,7 @@ StackToRegisterMappingCogit >> genJumpTo: targetBytecodePC [
 			"Since we are threading the jumps, spill everything above the top.
 			Leave the top for the next instruction that is assuming that this JUMP instruction did not consume the top"
 			currentAbstractStack  ssSpillStackExceptTop: 1.
-			fixup := self ensureFixupAt: eventualTarget withStackPointer: currentAbstractStack simStackPtr - 1]
+			fixup := self ensureFixupAt: eventualTarget withStackPointer: currentAbstractStack theSimStackPtr - 1]
 		ifFalse:
 			[currentAbstractStack  ssSpillStack.
 			fixup := self ensureFixupAt: eventualTarget].
@@ -2392,18 +2392,18 @@ StackToRegisterMappingCogit >> genSpecialSelectorArithmetic [
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genSpecialSelectorClass [
 	| topReg |
-	topReg := self ssTop registerOrNone.
+	topReg := currentAbstractStack ssTop registerOrNone.
 	(topReg = NoReg or: [topReg = ClassReg])
-		ifTrue: [currentAbstractStack ssAllocateRequiredReg: (topReg := SendNumArgsReg) and: ClassReg upThrough: currentAbstractStack simStackPtr - 1]
-		ifFalse: [currentAbstractStack ssAllocateRequiredReg: ClassReg upThrough: currentAbstractStack simStackPtr - 1].
+		ifTrue: [currentAbstractStack ssAllocateRequiredReg: (topReg := SendNumArgsReg) and: ClassReg upThrough: currentAbstractStack theSimStackPtr - 1]
+		ifFalse: [currentAbstractStack ssAllocateRequiredReg: ClassReg upThrough: currentAbstractStack theSimStackPtr - 1].
 
-	self ssPopTopToReg: topReg.
+	currentAbstractStack ssPopTopToReg: topReg.
 	objectRepresentation
 		genGetClassObjectOf: topReg
 		into: ClassReg
 		scratchReg: TempReg
 		instRegIsReceiver: false.
-	^self ssPushRegister: ClassReg
+	^currentAbstractStack ssPushRegister: ClassReg
 ]
 
 { #category : 'bytecode generators' }
@@ -3051,7 +3051,7 @@ StackToRegisterMappingCogit >> initSimStackForFramefulMethod: startpc [
 			offset: FoxCallerSavedIP + ((methodOrBlockNumArgs - i + 1) * objectMemory wordSize);
 			bcptr: startpc].
 	"temps"
-	methodOrBlockNumArgs + 1 to: currentAbstractStack simStackPtr do:
+	methodOrBlockNumArgs + 1 to: currentAbstractStack theSimStackPtr do:
 		[:i| | desc |
 		desc := currentAbstractStack simStackAt: i.
 		desc
@@ -3161,7 +3161,7 @@ StackToRegisterMappingCogit >> initializeFixup: fixup [
 	<var: #fixup type: #'BytecodeFixup *'>
 	<inline: true>
 	fixup
-		simStackPtr: currentAbstractStack simStackPtr;
+		simStackPtr: currentAbstractStack theSimStackPtr;
 		becomeMergeFixup;
 		setIsBackwardBranchFixup
 ]
@@ -3214,14 +3214,14 @@ StackToRegisterMappingCogit >> marshallSendArguments: numArgs [
 			 the fetch of ReceiverResultReg from the stack can be avoided
 			 by assigning directly to ReceiverResultReg and pushing it."
 			| numSpilled anyRefs |
-			numSpilled := self numberOfSpillsInTopNItems: numArgs + 1.
-			anyRefs := self anyReferencesToRegister: ReceiverResultReg inTopNItems: numArgs + 1.
+			numSpilled := currentAbstractStack numberOfSpillsInTopNItems: numArgs + 1.
+			anyRefs := currentAbstractStack anyReferencesToRegister: ReceiverResultReg inTopNItems: numArgs + 1.
 			(numSpilled > 0 or: [ anyRefs ])
 				ifTrue: [
 					currentAbstractStack ssSpillStack.
-					(currentAbstractStack simStackAt: currentAbstractStack simStackPtr - numArgs) copyToReg: ReceiverResultReg ]
+					(currentAbstractStack simStackAt: currentAbstractStack theSimStackPtr - numArgs) copyToReg: ReceiverResultReg ]
 				ifFalse: [
-					(currentAbstractStack simStackAt: currentAbstractStack simStackPtr - numArgs)
+					(currentAbstractStack simStackAt: currentAbstractStack theSimStackPtr - numArgs)
 						copyToReg: ReceiverResultReg;
 						type: SSRegister;
 						registerr: ReceiverResultReg.
@@ -3230,7 +3230,7 @@ StackToRegisterMappingCogit >> marshallSendArguments: numArgs [
 			"Pop from the stack, so that subsequent compilation in this unit make as if they were popped.
 			However, but do not discard the entries in the runtime stack (do not generate pops).
 			It's the callee responsibility of popping them."
-			^ self ssPop: numArgs + 1 popSpilled: false ]
+			^ currentAbstractStack ssPop: numArgs + 1 popSpilled: false ]
 		ifFalse: [
 			"Move the args to the register arguments, being careful to do
 			 so last to first so e.g. previous contents don't get overwritten.
@@ -3238,14 +3238,14 @@ StackToRegisterMappingCogit >> marshallSendArguments: numArgs [
 			numArgs > 0 ifTrue: [
 				(self numRegArgs > 1 and: [ numArgs > 1 ])
 					ifTrue: [
-						currentAbstractStack  ssAllocateRequiredReg: Arg0Reg upThrough: currentAbstractStack simStackPtr - 2.
-						currentAbstractStack  ssAllocateRequiredReg: Arg1Reg upThrough: currentAbstractStack simStackPtr - 1 ]
-					ifFalse: [ currentAbstractStack  ssAllocateRequiredReg: Arg0Reg upThrough: currentAbstractStack simStackPtr - 1 ] ].
+						currentAbstractStack  ssAllocateRequiredReg: Arg0Reg upThrough: currentAbstractStack theSimStackPtr - 2.
+						currentAbstractStack  ssAllocateRequiredReg: Arg1Reg upThrough: currentAbstractStack theSimStackPtr - 1 ]
+					ifFalse: [ currentAbstractStack  ssAllocateRequiredReg: Arg0Reg upThrough: currentAbstractStack theSimStackPtr - 1 ] ].
 
-			(self numRegArgs > 1 and: [ numArgs > 1 ]) ifTrue: [ (currentAbstractStack  simStackAt: currentAbstractStack simStackPtr) copyToReg: Arg1Reg ].
+			(self numRegArgs > 1 and: [ numArgs > 1 ]) ifTrue: [ (currentAbstractStack  simStackAt: currentAbstractStack theSimStackPtr) copyToReg: Arg1Reg ].
 
-			numArgs > 0 ifTrue: [ (currentAbstractStack  simStackAt: currentAbstractStack simStackPtr - numArgs + 1) copyToReg: Arg0Reg ].
-			(currentAbstractStack simStackAt: currentAbstractStack simStackPtr - numArgs) copyToReg: ReceiverResultReg.
+			numArgs > 0 ifTrue: [ (currentAbstractStack  simStackAt: currentAbstractStack theSimStackPtr - numArgs + 1) copyToReg: Arg0Reg ].
+			(currentAbstractStack simStackAt: currentAbstractStack theSimStackPtr - numArgs) copyToReg: ReceiverResultReg.
 
 			"Pop from the stack, so that subsequent compilation in this unit make as if they were popped.
 			Here, DO discard the entries in the runtime stack.

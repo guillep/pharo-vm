@@ -510,13 +510,6 @@ CogitAbstractStack >> simStackEntryClass [
 ]
 
 { #category : 'accessing' }
-CogitAbstractStack >> simStackPtr [
-
-	<doNotGenerate>
-	^ simStackPtr
-]
-
-{ #category : 'accessing' }
 CogitAbstractStack >> simStackPtr: anInteger [
 
 	<doNotGenerate>
@@ -1056,6 +1049,12 @@ CogitAbstractStack >> tempsValidAndVolatileEntriesSpilled [
 			[culprit ifNil: [culprit := i].
 			 ^false]].
 	^true
+]
+
+{ #category : 'accessing' }
+CogitAbstractStack >> theSimStackPtr [
+
+	^ simStackPtr
 ]
 
 { #category : 'simulation stack' }
