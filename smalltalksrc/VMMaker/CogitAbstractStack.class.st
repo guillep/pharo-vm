@@ -509,13 +509,6 @@ CogitAbstractStack >> simStackEntryClass [
 	^CogSimStackEntry
 ]
 
-{ #category : 'accessing' }
-CogitAbstractStack >> simStackPtr: anInteger [
-
-	<doNotGenerate>
-	simStackPtr := anInteger
-]
-
 { #category : 'simulation stack' }
 CogitAbstractStack >> simStackSlots [
 	"Answer the number of slots to include in a simulated stack.
@@ -1055,6 +1048,12 @@ CogitAbstractStack >> tempsValidAndVolatileEntriesSpilled [
 CogitAbstractStack >> theSimStackPtr [
 
 	^ simStackPtr
+]
+
+{ #category : 'accessing' }
+CogitAbstractStack >> theSimStackPtr: anInteger [
+
+	simStackPtr := anInteger
 ]
 
 { #category : 'simulation stack' }

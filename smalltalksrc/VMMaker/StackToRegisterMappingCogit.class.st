@@ -3032,7 +3032,7 @@ StackToRegisterMappingCogit >> initSimStackForFramefulMethod: startpc [
 	<var: #desc type: #'CogSimStackEntry *'>
 	
 	self initSimStackPointer: startpc.
-	currentAbstractStack simStackPtr: methodOrBlockNumTemps. "N.B. Includes num args"
+	currentAbstractStack theSimStackPtr: methodOrBlockNumTemps. "N.B. Includes num args"
 	currentAbstractStack simSpillBase: methodOrBlockNumTemps + 1.
 	currentAbstractStack simSelf
 		type: SSBaseOffset;
@@ -3089,7 +3089,7 @@ StackToRegisterMappingCogit >> initSimStackForFramelessBlock: startpc [
 					 ifFalse: [ methodOrBlockNumArgs + 1 - i ])
 				* objectMemory wordSize;
 			bcptr: startpc ].
-	currentAbstractStack simStackPtr: methodOrBlockNumTemps. "N.B. Includes num args"
+	currentAbstractStack theSimStackPtr: methodOrBlockNumTemps. "N.B. Includes num args"
 	currentAbstractStack simSpillBase: methodOrBlockNumTemps + 1
 ]
 
@@ -3099,7 +3099,7 @@ StackToRegisterMappingCogit >> initSimStackForFramelessMethod: startpc [
 	<var: #desc type: #'CogSimStackEntry *'>
 
 	self initSimStackPointer: startpc.
-	self simSelf
+	currentAbstractStack simSelf
 		type: SSRegister;
 		spilled: false;
 		registerr: ReceiverResultReg;
@@ -3108,14 +3108,14 @@ StackToRegisterMappingCogit >> initSimStackForFramelessMethod: startpc [
 	self assert: self numRegArgs <= 2.
 	(methodOrBlockNumArgs between: 1 and: self numRegArgs)
 		ifTrue:
-			[desc := self simStackAt: 1.
+			[desc := currentAbstractStack simStackAt: 1.
 			 desc
 				type: SSRegister;
 				spilled: false;
 				registerr: Arg0Reg;
 				bcptr: startpc.
 			 methodOrBlockNumArgs > 1 ifTrue:
-				[desc := self simStackAt: 2.
+				[desc := currentAbstractStack simStackAt: 2.
 				 desc
 					type: SSRegister;
 					spilled: false;
@@ -3133,7 +3133,7 @@ StackToRegisterMappingCogit >> initSimStackForFramelessMethod: startpc [
 								ifTrue: [methodOrBlockNumArgs - i]
 								ifFalse: [methodOrBlockNumArgs + 1 - i]) * objectMemory wordSize);
 					bcptr: startpc]].
-	currentAbstractStack simStackPtr: methodOrBlockNumTemps. "N.B. Includes num args"
+	currentAbstractStack theSimStackPtr: methodOrBlockNumTemps. "N.B. Includes num args"
 	currentAbstractStack simSpillBase: methodOrBlockNumTemps + 1
 ]
 
@@ -3481,7 +3481,7 @@ StackToRegisterMappingCogit >> mergeWithFixupIfRequired: fixup [
 			["Would like to assert fixup simStackPtr >= methodOrBlockNumTemps
 			   but can't because of the initialNils hack."
 			 self assert: (fixup simStackPtr >= methodOrBlockNumTemps).
-			 currentAbstractStack simStackPtr: fixup simStackPtr ]
+			 currentAbstractStack theSimStackPtr: fixup simStackPtr ]
 		ifFalse: "case 4"
 			[currentAbstractStack  ssSpillStack].
 
