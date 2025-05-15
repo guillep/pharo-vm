@@ -158,8 +158,7 @@ StackToRegisterMappingCogit class >> ancilliaryClasses [
 	^ super ancilliaryClasses , {
 		  CogitAbstractStack.
 		  CogitAbstractStack basicNew simStackEntryClass.
-		  self basicNew bytecodeFixupClass.
-		  CogSSOptStatus }
+		  self basicNew bytecodeFixupClass }
 ]
 
 { #category : 'documentation' }
@@ -240,12 +239,10 @@ StackToRegisterMappingCogit class >> declareCVarsIn: aCodeGen [
 			declareC: 'void (*ceCallCogCodePopReceiverArg1Arg0Regs)(void)';
 		var: #realCECallCogCodePopReceiverArg1Arg0Regs
 			declareC: 'void (*realCECallCogCodePopReceiverArg1Arg0Regs)(void)';
-		var: 'simSelf'
-			type: #CogSimStackEntry;
-		var: #optStatus
-			type: #CogSSOptStatus;
 		var: 'prevBCDescriptor'
-			type: #'BytecodeDescriptor *'.
+			type: #'BytecodeDescriptor *';
+		var: 'currentAbstractStack'
+			type: #'CogitAbstractStack'.
 
 	self numPushNilsFunction ifNotNil:
 		[aCodeGen
