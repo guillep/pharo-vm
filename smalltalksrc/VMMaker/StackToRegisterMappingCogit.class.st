@@ -423,13 +423,6 @@ StackToRegisterMappingCogit class >> isAcceptableAncilliaryClass: aClass [
 ]
 
 { #category : 'translation' }
-StackToRegisterMappingCogit class >> isNonArgumentImplicitReceiverVariableName: aString [
-
-	^ aString = 'currentAbstractStack' or: [
-		  super isNonArgumentImplicitReceiverVariableName: aString ]
-]
-
-{ #category : 'translation' }
 StackToRegisterMappingCogit class >> mustBeGlobalAndExport: var [
 	"Answer if a variable must be global and exported.  Used for inst vars that are accessed from VM support code."
 
@@ -849,49 +842,10 @@ StackToRegisterMappingCogit >> debugStackPointerFor: bcpc [
 ]
 
 { #category : 'bytecode generators' }
-StackToRegisterMappingCogit >> doubleExtendedDoAnythingBytecode [
-	"Replaces the Blue Book double-extended send [132], in which the first byte was wasted on 8 bits of argument count. 
-	Here we use 3 bits for the operation sub-type (opType),  and the remaining 5 bits for argument count where needed. 
-	The last byte give access to 256 instVars or literals. 
-	See also secondExtendedSendBytecode"
-	| opType |
-	opType := byte1 >> 5.
-	opType = 0 ifTrue:
-		[^self genSend: byte2 numArgs: (byte1 bitAnd: 31)].
-	opType = 1 ifTrue:
-		[^self genSendSuper: byte2 numArgs: (byte1 bitAnd: 31)].
-	"We need a map entry for this bytecode for correct parsing.
-	 The sends will get an IsSend entry anyway.  The other cases need a fake one."
-	opType caseOf: {
-			[2]	->	[(coInterpreter isReadMediatedContextInstVarIndex: byte2)
-						ifTrue: [self genPushMaybeContextReceiverVariable: byte2]
-						ifFalse: [self genPushReceiverVariable: byte2.
-								self annotateInstructionForBytecode.
-								^0]].
-			[3]	->	[self genPushLiteralIndex: byte2.
-					 self annotateInstructionForBytecode.
-					 ^0].
-			[4]	->	[self genPushLiteralVariable: byte2.].
-			[7]	->	[self genStorePop: false LiteralVariable: byte2.
-					self cppIf: IMMUTABILITY ifTrue: [ "genStorePop:LiteralVariable: annotates; don't annotate twice" ^0 ] ] }
-		otherwise: "5 & 6"
-			[(coInterpreter isWriteMediatedContextInstVarIndex: byte2)
-				ifTrue: [self genStorePop: opType = 6 MaybeContextReceiverVariable: byte2]
-				ifFalse: [self genStorePop: opType = 6 ReceiverVariable: byte2].
-			self cppIf: IMMUTABILITY ifTrue: [ "genStorePop:...ReceiverVariable: annotate; don't annotate twice" ^0 ]].
-	"We need a map entry for this bytecode for correct parsing (if the method builds a frame)."
-	self assert: needsFrame.
-	"genPushMaybeContextInstVar, pushLitVar, store & storePop all generate code"
-	self assert: self prevInstIsPCAnnotated not.
-	self annotateBytecode: self Label.
-	^0
-]
-
-{ #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> duplicateTopBytecode [
 	| desc |
 	<var: #desc type: #SimStackEntry>
-	desc := currentAbstractStack  ssTopDescriptor.
+	desc := currentAbstractStack ssTopDescriptor.
 	^currentAbstractStack ssPushDesc: desc
 ]
 
@@ -1133,16 +1087,15 @@ StackToRegisterMappingCogit >> genAddFloat64Vector [
 	
 	objectMemory wordSize = 4 ifTrue: [ ^ EncounteredUnknownBytecode ].	
 	
-	array2Reg := currentAbstractStack  allocateVectorRegForStackEntryAt: 0 notConflictingWith: 0.
-	array1Reg := currentAbstractStack  allocateVectorRegForStackEntryAt: 1 notConflictingWith: (self registerMaskFor: array2Reg).
+	array2Reg := currentAbstractStack allocateVectorRegForStackEntryAt: 0 notConflictingWith: 0.
+	array1Reg := currentAbstractStack allocateVectorRegForStackEntryAt: 1 notConflictingWith: (self registerMaskFor: array2Reg).
 	"The result register is the same that the array1Reg"
 	sumReg := array1Reg.
 	
-	currentAbstractStack  ssPopTopToVectorReg: array2Reg.
-	currentAbstractStack  ssPopTopToVectorReg: array1Reg.
+	currentAbstractStack ssPopTopToVectorReg: array2Reg.
+	currentAbstractStack ssPopTopToVectorReg: array1Reg.
 	self FaddS: 64 Rv: array1Reg Rv: array2Reg Rv: sumReg.
-	currentAbstractStack  ssPushVectorRegister: sumReg.
-	
+	currentAbstractStack ssPushVectorRegister: sumReg.
 	^0
 ]
 
@@ -1218,9 +1171,9 @@ StackToRegisterMappingCogit >> genCmpArgIsConstant: argIsConstant rcvrIsConstant
 	<inline: true>
 	self assert: (argReg ~= NoReg or: [rcvrReg ~= NoReg]).
 	argIsConstant 
-		ifTrue: [ self genCmpConstant: self ssTop constant R: rcvrReg ]
+		ifTrue: [ self genCmpConstant: currentAbstractStack ssTop constant R: rcvrReg ]
 		ifFalse: [ rcvrIsConstant
-			ifTrue: [ self genCmpConstant: (self ssValue: 1) constant R: argReg ]
+			ifTrue: [ self genCmpConstant: (currentAbstractStack ssValue: 1) constant R: argReg ]
 			ifFalse: [ self CmpR: argReg R: rcvrReg ] ].
 ]
 
@@ -1235,8 +1188,8 @@ StackToRegisterMappingCogit >> genExtPushFullClosureBytecode [
 	numCopied := byte2 bitAnd: 1<< 6 - 1.
 	receiverIsOnStack := byte2 anyMask: 1 << 7.
 	ignoreContext := byte2 anyMask: 1 << 6.
-	self voidReceiverResultRegContainsSelf.
-	self ssAllocateCallReg: ReceiverResultReg
+	currentAbstractStack voidReceiverResultRegContainsSelf.
+	currentAbstractStack ssAllocateCallReg: ReceiverResultReg
 		and: SendNumArgsReg
 		and: ClassReg.
 	objectRepresentation
@@ -1250,36 +1203,20 @@ StackToRegisterMappingCogit >> genExtPushFullClosureBytecode [
 	"Closure in ReceiverResultReg"
 	1 to: numCopied do:
 		[:i| 
-		reg := self ssStorePop: true toPreferredReg: TempReg.
+		reg := currentAbstractStack ssStorePop: true toPreferredReg: TempReg.
 		 objectRepresentation
 			genStoreSourceReg: reg
 			slotIndex: FullClosureFirstCopiedValueIndex + numCopied - i
 			intoNewObjectInDestReg: ReceiverResultReg].
 	receiverIsOnStack
-		ifTrue: [reg := self ssStorePop: true toPreferredReg: TempReg]
-		ifFalse: [self simSelf copyToReg: (reg := TempReg)].
+		ifTrue: [reg := currentAbstractStack ssStorePop: true toPreferredReg: TempReg]
+		ifFalse: [currentAbstractStack simSelf copyToReg: (reg := TempReg)].
 	objectRepresentation
 			genStoreSourceReg: reg
 			slotIndex: FullClosureReceiverIndex
 			intoNewObjectInDestReg: ReceiverResultReg.
-	self ssPushRegister: ReceiverResultReg.
+	currentAbstractStack ssPushRegister: ReceiverResultReg.
 	^0
-]
-
-{ #category : 'bytecode generators' }
-StackToRegisterMappingCogit >> genExtPushRemoteTempOrInstVarLongBytecode [
-	| index maybeContext |
-	^ (byte2 noMask: coInterpreter remoteIsInstVarAccess)
-		ifTrue: [ self genPushRemoteTempLongBytecode ]
-		ifFalse: 
-			[ maybeContext := self extBSpecifiesMaybeContext.
-			index := byte1 + (extA << 8).
-			extA := 0.
-			extB := 0.
-			numExtB := 0.
-			((coInterpreter isReadMediatedContextInstVarIndex: index) and: [ maybeContext ])
-				ifTrue: [ self genPushMaybeContextRemoteInstVar: index inObjectAt: byte2 - coInterpreter remoteIsInstVarAccess ]
-				ifFalse: [ self genPushRemoteInstVar: index inObjectAt: byte2 - coInterpreter remoteIsInstVarAccess ] ]
 ]
 
 { #category : 'bytecode generators' }
@@ -1409,7 +1346,7 @@ StackToRegisterMappingCogit >> genForwardersInlinedIdenticalOrNotIf: orNot [
 		ifNotForwarder: fixup.
 
 	"Not reached, execution flow has jumped to fixup"
-	deadCode ifFalse: [ self ssPushConstant: objectMemory trueObject ]. "dummy value"
+	deadCode ifFalse: [ currentAbstractStack ssPushConstant: objectMemory trueObject ]. "dummy value"
 	^ 0
 ]
 
@@ -1515,9 +1452,9 @@ StackToRegisterMappingCogit >> genIdenticalNoBranchArgIsConstant: argIsConstant 
 	<var: #jumpNotEqual type: #'AbstractInstruction *'>
 	| label jumpEqual jumpNotEqual resultReg receiverConstant argumentConstant |
 	
-	receiverConstant := (self ssValue: 1) constant.
-	argumentConstant := self ssTop constant.
-	self ssPop: 2.
+	receiverConstant := (currentAbstractStack ssValue: 1) constant.
+	argumentConstant := currentAbstractStack ssTop constant.
+	currentAbstractStack ssPop: 2.
 
 	label := self Label.
 	self assert: (argReg ~= NoReg or: [ rcvrRegOrNone ~= NoReg ]).
@@ -1542,7 +1479,7 @@ StackToRegisterMappingCogit >> genIdenticalNoBranchArgIsConstant: argIsConstant 
 			 ifFalse: [ self genMoveTrueR: resultReg ]
 			 ifTrue: [ self genMoveFalseR: resultReg ]).
 	jumpNotEqual jmpTarget: self Label.
-	self ssPushRegister: resultReg.
+	currentAbstractStack ssPushRegister: resultReg.
 	^ 0
 ]
 
@@ -1555,7 +1492,7 @@ StackToRegisterMappingCogit >> genInlinedIdenticalOrNotIf: orNot [
 	<var: #primDescriptor type: #'BytecodeDescriptor *'>
 	primDescriptor := self generatorAt: byte0.
 	
-	((objectRepresentation isUnannotatableConstant: currentAbstractStack  ssTop)
+	((objectRepresentation isUnannotatableConstant: currentAbstractStack ssTop)
 	 and: [ objectRepresentation isUnannotatableConstant: (currentAbstractStack  ssValue: 1) ]) ifTrue:
 		[self assert: primDescriptor isMapped not.
 		 result := (orNot
@@ -1563,8 +1500,8 @@ StackToRegisterMappingCogit >> genInlinedIdenticalOrNotIf: orNot [
 					ifTrue: [currentAbstractStack  ssTop constant ~= (currentAbstractStack  ssValue: 1) constant])
 									ifTrue: [objectMemory trueObject]
 									ifFalse: [objectMemory falseObject].
-		 currentAbstractStack  ssPop: 2.
-		 ^currentAbstractStack  ssPushConstant: result].
+		 currentAbstractStack ssPop: 2.
+		 ^currentAbstractStack ssPushConstant: result].
 
 	^objectRepresentation genInlinedIdenticalOrNotIfGuts: orNot
 ]
@@ -1586,11 +1523,11 @@ StackToRegisterMappingCogit >> genJumpIf: boolean to: targetBytecodePC [
 	| desc fixup ok eventualTarget |
 	eventualTarget := self eventualTargetOf: targetBytecodePC.
 	currentAbstractStack ssSpillStackExceptTop: 1.
-	desc := currentAbstractStack  ssTop.
+	desc := currentAbstractStack ssTop.
 	(currentAbstractStack stackEntryIsBoolean: desc) ifTrue: [
 		"Must arrange there's a fixup at the target whether it is jumped to or
 		not so that the simStackPtr can be kept correct."
-		currentAbstractStack  ssPop: 1.
+		currentAbstractStack ssPop: 1.
 		fixup := self ensureFixupAt: eventualTarget.
 		"Must annotate the bytecode for correct pc mapping."
 		self annotateBytecode: (desc constant = boolean
@@ -1601,7 +1538,7 @@ StackToRegisterMappingCogit >> genJumpIf: boolean to: targetBytecodePC [
 						 ifFalse: [ self Label ] ]).
 		extA := 0.
 		^ 0 ].
-	currentAbstractStack  ssPopTopToReg: TempReg.
+	currentAbstractStack ssPopTopToReg: TempReg.
 	"Cunning trick by LPD.  If true and false are contiguous subtract the smaller.
 	 Correct result is either 0 or the distance between them.  If result is not 0 or
 	 their distance send mustBeBoolean."
@@ -1666,16 +1603,16 @@ StackToRegisterMappingCogit >> genLoadLiteralVariable: litVarIndex in: destReg [
 	<inline: true>
 	| association |
 	association := self getLiteral: litVarIndex.
-	destReg = ReceiverResultReg ifTrue: [self voidReceiverResultRegContainsSelf].
-	self ssAllocateRequiredReg: destReg.
+	destReg = ReceiverResultReg ifTrue: [currentAbstractStack voidReceiverResultRegContainsSelf].
+	currentAbstractStack ssAllocateRequiredReg: destReg.
 	self genMoveConstant: association R: destReg.
 	objectRepresentation genEnsureObjInRegNotForwarded: destReg scratchReg: TempReg.
 ]
 
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genLoadTemp: objectIndex in: destReg [
-	destReg = ReceiverResultReg ifTrue: [self voidReceiverResultRegContainsSelf].
-	self ssAllocateRequiredReg: destReg. 
+	destReg = ReceiverResultReg ifTrue: [currentAbstractStack voidReceiverResultRegContainsSelf].
+	currentAbstractStack ssAllocateRequiredReg: destReg. 
 	self MoveMw: (self frameOffsetOfTemporary: objectIndex) r: FPReg R: destReg.
 ]
 
@@ -1751,7 +1688,7 @@ StackToRegisterMappingCogit >> genMarshalledSend: selectorIndex numArgs: numArgs
 		[self genMoveConstant: tempOop R: TempReg].
 	self genLoadInlineCacheWithSelector: selectorIndex.
 	(self Call: (sendTable at: (numArgs min: NumSendTrampolines - 1))) annotation: annotation.
-	self voidReceiverOptStatus.
+	currentAbstractStack voidReceiverOptStatus.
 	currentAbstractStack  ssPushRegister: ReceiverResultReg.
 	^ 0
 ]
@@ -1839,7 +1776,7 @@ StackToRegisterMappingCogit >> genPICMissTrampolineFor: numArgs [
 
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genPopStackBytecode [
-	currentAbstractStack  ssPop: 1.
+	currentAbstractStack ssPop: 1.
 	^0
 ]
 
@@ -1880,27 +1817,17 @@ StackToRegisterMappingCogit >> genPrimitivePerform [
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genPushActiveContextBytecode [
 	self assert: needsFrame.
-	self voidReceiverResultRegContainsSelf.
+	currentAbstractStack voidReceiverResultRegContainsSelf.
 	objectRepresentation getActiveContextAllocatesInMachineCode
-		ifTrue: [self ssAllocateCallReg: ReceiverResultReg
+		ifTrue: [currentAbstractStack ssAllocateCallReg: ReceiverResultReg
 					and: SendNumArgsReg
 					and: ClassReg]
-		ifFalse: [self ssAllocateCallReg: ReceiverResultReg].
+		ifFalse: [currentAbstractStack ssAllocateCallReg: ReceiverResultReg].
 	objectRepresentation
 		genGetActiveContextNumArgs: methodOrBlockNumArgs
 		large: (coInterpreter methodNeedsLargeContext: methodObj)
 		inBlock: inBlock.
-	^self ssPushRegister: ReceiverResultReg
-]
-
-{ #category : 'bytecode generator support' }
-StackToRegisterMappingCogit >> genPushEnclosingObjectAt: level [
-	"Uncached push enclosing object"
-	self voidReceiverResultRegContainsSelf.
-	self ssAllocateCallReg: SendNumArgsReg and: ReceiverResultReg.
-	self MoveCq: level R: SendNumArgsReg.
-	self CallRT: ceEnclosingObjectTrampoline.
-	^self ssPushRegister: ReceiverResultReg
+	^currentAbstractStack ssPushRegister: ReceiverResultReg
 ]
 
 { #category : 'mapped inline primitive generators - vectorial' }
@@ -1965,7 +1892,7 @@ StackToRegisterMappingCogit >> genPushFloat64ArrayToRegister [
 
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genPushLiteral: literal [
-	currentAbstractStack  ssPushConstant: literal.
+	currentAbstractStack ssPushConstant: literal.
 	^ 0
 ]
 
@@ -1992,10 +1919,10 @@ StackToRegisterMappingCogit >> genPushLiteralVariable: literalIndex [
 		 self nextDescriptorExtensionsAndNextPCInto:
 			[:descriptor :exta :extb :followingPC|
 			(self isDirectedSuper: descriptor extA: exta extB: extb) ifTrue:
-				[currentAbstractStack  ssPushConstant: association.
+				[currentAbstractStack ssPushConstant: association.
 				 directedSendUsesBinding := true.
 				 ^0]]].
-	freeReg := currentAbstractStack  allocateRegNotConflictingWith: 0.
+	freeReg := currentAbstractStack allocateRegNotConflictingWith: 0.
 	"N.B. Do _not_ use ReceiverResultReg to avoid overwriting receiver in assignment in frameless methods."
 	"So far descriptors are not rich enough to describe the entire dereference so generate the register
 	 load but don't push the result.  There is an order-of-evaluation issue if we defer the dereference."
@@ -2014,16 +1941,8 @@ StackToRegisterMappingCogit >> genPushLiteralVariable: literalIndex [
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genPushMaybeContextReceiverVariable: slotIndex [ 
 	<inline: false>
-	self ssAllocateCallReg: ReceiverResultReg and: SendNumArgsReg.
+	currentAbstractStack ssAllocateCallReg: ReceiverResultReg and: SendNumArgsReg.
 	self ensureReceiverResultRegContainsSelf.
-	^ self genPushMaybeContextSlotIndex: slotIndex
-]
-
-{ #category : 'bytecode generator support' }
-StackToRegisterMappingCogit >> genPushMaybeContextRemoteInstVar: slotIndex inObjectAt: index [
-	<inline: false>
-	self ssAllocateCallReg: ReceiverResultReg and: SendNumArgsReg.
-	self genLoadTemp: index in: ReceiverResultReg.
 	^ self genPushMaybeContextSlotIndex: slotIndex
 ]
 
@@ -2037,13 +1956,13 @@ StackToRegisterMappingCogit >> genPushMaybeContextSlotIndex: slotIndex [
 	self assert: needsFrame.
 	(self isCallerSavedReg: ReceiverResultReg) ifTrue:
 		["We have no way of reloading ReceiverResultReg since we need the inst var value as the result."
-		self voidReceiverResultRegContainsSelf].
+		currentAbstractStack voidReceiverResultRegContainsSelf].
 	"See CoInterpreter>>contextInstructionPointer:frame: for an explanation
 	 of the instruction pointer slot handling."
 	slotIndex = InstructionPointerIndex ifTrue:
 		[self MoveCq: slotIndex R: SendNumArgsReg.
 		 self CallRT: ceFetchContextInstVarTrampoline.
-		 ^self ssPushRegister: SendNumArgsReg].
+		 ^currentAbstractStack ssPushRegister: SendNumArgsReg].
 	objectRepresentation
 		genLoadSlot: SenderIndex
 		sourceReg: ReceiverResultReg
@@ -2058,33 +1977,33 @@ StackToRegisterMappingCogit >> genPushMaybeContextSlotIndex: slotIndex [
 		sourceReg: ReceiverResultReg
 		destReg: SendNumArgsReg.
 	jmpDone jmpTarget: self Label.
-	^self ssPushRegister: SendNumArgsReg
+	^currentAbstractStack ssPushRegister: SendNumArgsReg
 ]
 
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genPushNewArrayBytecode [
 	| size popValues |
 	self assert: needsFrame.
-	self voidReceiverResultRegContainsSelf.
+	currentAbstractStack voidReceiverResultRegContainsSelf.
 	"Spill everything in the stack so that we can simplify the access just by doing a pop"
 	(popValues := byte1 > 127)
-		ifTrue: [self ssSpillStack]
-		ifFalse: [self ssAllocateCallReg: SendNumArgsReg and: ReceiverResultReg].
+		ifTrue: [currentAbstractStack ssSpillStack]
+		ifFalse: [currentAbstractStack ssAllocateCallReg: SendNumArgsReg and: ReceiverResultReg].
 
 	size := byte1 bitAnd: 127.
 	popValues ifFalse:
-		[(self tryCollapseTempVectorInitializationOfSize: size) ifTrue:
+		[(currentAbstractStack tryCollapseTempVectorInitializationOfSize: size) ifTrue:
 			[^0]].
 
 	objectRepresentation genNewArrayOfSize: size initialized: popValues not.
 	popValues ifTrue: [
 		size - 1 to: 0 by: -1 do: [:i|
-			self ssPopTopToReg: TempReg.
+			currentAbstractStack ssPopTopToReg: TempReg.
 			objectRepresentation
 				genStoreSourceReg: TempReg
 				slotIndex: i
 				intoNewObjectInDestReg: ReceiverResultReg ]].
-	^self ssPushRegister: ReceiverResultReg
+	^currentAbstractStack ssPushRegister: ReceiverResultReg
 ]
 
 { #category : 'bytecode generators' }
@@ -2098,7 +2017,7 @@ StackToRegisterMappingCogit >> genPushReceiverBytecode [
 StackToRegisterMappingCogit >> genPushReceiverVariable: index [
 	<inline: false>
 	self ensureReceiverResultRegContainsSelf.
-	^self ssPushBase: ReceiverResultReg
+	^currentAbstractStack ssPushBase: ReceiverResultReg
 			offset: (objectRepresentation slotOffsetOfInstVarIndex: index)
 ]
 
@@ -2119,23 +2038,23 @@ StackToRegisterMappingCogit >> genPushRemoteInstVar: index inObjectAt: objectInd
 	<inline: false>
 	| objectReg resultReg |
 	self assert: needsFrame.
-	objectReg := self allocateRegNotConflictingWith: 0.
+	objectReg := currentAbstractStack allocateRegNotConflictingWith: 0.
 	self genLoadTemp: objectIndex in: objectReg.
-	resultReg := self availableRegOrNoneNotConflictingWith: (self registerMaskFor: objectReg). 
+	resultReg := currentAbstractStack availableRegOrNoneNotConflictingWith: (self registerMaskFor: objectReg). 
 	resultReg = NoReg ifTrue: [resultReg := objectReg].
 	objectRepresentation
 		genLoadSlot: byte1
 		sourceReg: objectReg
 		destReg: resultReg.
-	^self ssPushRegister: resultReg
+	^currentAbstractStack ssPushRegister: resultReg
 ]
 
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genPushRemoteTempLongBytecode [
 	| tempVectReg remoteTempReg |
-	tempVectReg := self allocateRegNotConflictingWith: 0.
+	tempVectReg := currentAbstractStack allocateRegNotConflictingWith: 0.
 	self MoveMw: (self frameOffsetOfTemporary: byte2) r: FPReg R: tempVectReg.
-	remoteTempReg := self availableRegOrNoneNotConflictingWith: (self registerMaskFor: tempVectReg). 
+	remoteTempReg := currentAbstractStack availableRegOrNoneNotConflictingWith: (self registerMaskFor: tempVectReg). 
 	remoteTempReg = NoReg ifTrue: [remoteTempReg := tempVectReg].
 	TempVectReadBarrier
 		ifTrue: [objectRepresentation
@@ -2145,7 +2064,7 @@ StackToRegisterMappingCogit >> genPushRemoteTempLongBytecode [
 		genLoadSlot: byte1
 		sourceReg: tempVectReg
 		destReg: remoteTempReg.
-	^self ssPushRegister: remoteTempReg
+	^currentAbstractStack ssPushRegister: remoteTempReg
 ]
 
 { #category : 'bytecode generator support' }
@@ -2170,13 +2089,13 @@ StackToRegisterMappingCogit >> genReturnReceiver [
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genReturnTopFromBlock [
 	self assert: inBlock > 0.
-	self ssPopTopToReg: ReceiverResultReg.
+	currentAbstractStack ssPopTopToReg: ReceiverResultReg.
 	^self genBlockReturn
 ]
 
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genReturnTopFromMethod [
-	currentAbstractStack  ssPopTopToReg: ReceiverResultReg.
+	currentAbstractStack ssPopTopToReg: ReceiverResultReg.
 	^self genUpArrowReturn
 ]
 
@@ -2189,9 +2108,9 @@ StackToRegisterMappingCogit >> genSend: selectorIndex numArgs: numArgs [
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genSendDirectedSuper: selectorIndex numArgs: numArgs [
 	| result |
-	self assert: self ssTop type = SSConstant.
-	tempOop := self ssTop constant.
-	self ssPop: 1.
+	self assert: currentAbstractStack ssTop type = SSConstant.
+	tempOop := currentAbstractStack ssTop constant.
+	currentAbstractStack ssPop: 1.
 	self marshallSendArguments: numArgs.
 	result := self
 				genMarshalledSend: selectorIndex
@@ -2297,7 +2216,7 @@ StackToRegisterMappingCogit >> genSpecialSelectorArithmetic [
 
 	rcvrIsInt := ((rcvrIsConst := (currentAbstractStack ssValue: 1) type = SSConstant)
 				  and: [objectMemory isIntegerObject: (rcvrInt := (currentAbstractStack ssValue: 1) constant)])
-				or: [self mclassIsSmallInteger and: [(currentAbstractStack ssValue: 1) isSameEntryAs: self simSelf]].
+				or: [self mclassIsSmallInteger and: [(currentAbstractStack ssValue: 1) isSameEntryAs: currentAbstractStack simSelf]].
 
 	(argIsInt and: [argIsConst and: [rcvrIsInt and: [rcvrIsConst]]]) ifTrue:
 		[rcvrInt := objectMemory integerValueOf: rcvrInt.
@@ -2309,7 +2228,7 @@ StackToRegisterMappingCogit >> genSpecialSelectorArithmetic [
 			[OrRR]	-> [result := rcvrInt bitOr: argInt] }.
 		(objectMemory isIntegerValue: result) ifTrue:
 			["Must annotate the bytecode for correct pc mapping."
-			^self ssPop: 2; ssPushAnnotatedConstant: (objectMemory integerObjectOf: result)].
+			^currentAbstractStack ssPop: 2; ssPushAnnotatedConstant: (objectMemory integerObjectOf: result)].
 		^self genSpecialSelectorSend].
 
 	"If there's any constant involved other than a SmallInteger don't attempt to inline."
@@ -2326,7 +2245,7 @@ StackToRegisterMappingCogit >> genSpecialSelectorArithmetic [
 		ifTrue: [
 			currentAbstractStack  ssSpillStackExceptTop: 2.
 			currentAbstractStack  ssPop: 1.
-			currentAbstractStack  ssPopTopToReg: ReceiverResultReg ]
+			currentAbstractStack ssPopTopToReg: ReceiverResultReg ]
 		ifFalse:
 			[self marshallSendArguments: 1].
 	jumpNotSmallInts := (rcvrIsInt and: [argIsInt]) ifFalse:
@@ -2377,7 +2296,7 @@ StackToRegisterMappingCogit >> genSpecialSelectorArithmetic [
 	jumpNotSmallInts
 		ifNil: [jumpContinue ifNil: "overflow cannot happen"
 				[self annotateInstructionForBytecode.
-				 self ssPushRegister: ReceiverResultReg.
+				 currentAbstractStack ssPushRegister: ReceiverResultReg.
 				 ^0]]
 		ifNotNil:
 			[jumpNotSmallInts jmpTarget: self Label].
@@ -2415,15 +2334,15 @@ StackToRegisterMappingCogit >> genSpecialSelectorComparison [
 	| nextPC postBranchPC targetPC primDescriptor branchDescriptor rcvrIsInt rcvrIsConst argIsIntConst argInt jumpNotSmallInts inlineCAB index |
 	currentAbstractStack  ssSpillStackExceptTop: 2.
 	primDescriptor := self generatorAt: byte0.
-	argIsIntConst := currentAbstractStack  ssTop type = SSConstant and: [
+	argIsIntConst := currentAbstractStack ssTop type = SSConstant and: [
 		                 objectMemory isIntegerObject:
-			                 (argInt := currentAbstractStack  ssTop constant) ].
+			                 (argInt := currentAbstractStack ssTop constant) ].
 	rcvrIsInt := ((rcvrIsConst := (currentAbstractStack  ssValue: 1) type = SSConstant)
 		              and: [
 		              objectMemory isIntegerObject:
 			              (currentAbstractStack  ssValue: 1) constant ]) or: [
 		             self mclassIsSmallInteger and: [
-			             (currentAbstractStack  ssValue: 1) isSameEntryAs: currentAbstractStack  simSelf ] ].
+			             (currentAbstractStack  ssValue: 1) isSameEntryAs: currentAbstractStack simSelf ] ].
 
 	"If both operands are constant, fold the value"
 	(argIsIntConst and: [ rcvrIsInt and: [ rcvrIsConst ] ]) ifTrue: [
@@ -2451,8 +2370,8 @@ StackToRegisterMappingCogit >> genSpecialSelectorComparison [
 	argIsIntConst ifTrue: [
 		"If the argument is constant, we already extracted the value and we have it in argInt"
 		"Pop the argument from the stack, then the receiver"
-		currentAbstractStack  ssPop: 1.
-		currentAbstractStack  ssPopTopToReg: ReceiverResultReg ]
+		currentAbstractStack ssPop: 1.
+		currentAbstractStack ssPopTopToReg: ReceiverResultReg ]
 	ifFalse: [ 
 		"Otherwise, marshall normally to prepare for a message send"
 		self marshallSendArguments: 1 ].
@@ -2516,8 +2435,8 @@ StackToRegisterMappingCogit >> genStaticallyResolvedSpecialSelectorComparison [
 	<var: #primDescriptor type: #'BytecodeDescriptor *'>
 	| rcvrInt argInt primDescriptor result |
 	primDescriptor := self generatorAt: byte0.
-	argInt := self ssTop constant.
-	rcvrInt := (self ssValue: 1) constant.
+	argInt := currentAbstractStack ssTop constant.
+	rcvrInt := (currentAbstractStack ssValue: 1) constant.
 	self cCode: '' inSmalltalk: "In Simulator ints are unsigned..."
 		[rcvrInt := objectMemory integerValueOf: rcvrInt.
 		argInt := objectMemory integerValueOf: argInt].
@@ -2529,8 +2448,8 @@ StackToRegisterMappingCogit >> genStaticallyResolvedSpecialSelectorComparison [
 		[JumpZero]				-> [result := rcvrInt = argInt].
 		[JumpNonZero]			-> [result := rcvrInt ~= argInt] }.
 	 "Must annotate the bytecode for correct pc mapping."
-	 self ssPop: 2.
-	 ^self ssPushAnnotatedConstant: (result
+	 currentAbstractStack ssPop: 2.
+	 ^currentAbstractStack ssPushAnnotatedConstant: (result
 			ifTrue: [objectMemory trueObject]
 			ifFalse: [objectMemory falseObject])
 ]
@@ -2570,11 +2489,11 @@ StackToRegisterMappingCogit >> genStoreFloat64RegisterIntoArray [
 	
 	objectMemory wordSize = 4 ifTrue: [ ^ EncounteredUnknownBytecode ].
 	
-	arrayReg := currentAbstractStack  allocateRegForStackEntryAt: 0 notConflictingWith: 0.
-	indexReg := currentAbstractStack  allocateRegForStackEntryAt: 1 notConflictingWith: (self registerMaskFor: arrayReg).
+	arrayReg := currentAbstractStack allocateRegForStackEntryAt: 0 notConflictingWith: 0.
+	indexReg := currentAbstractStack allocateRegForStackEntryAt: 1 notConflictingWith: (self registerMaskFor: arrayReg).
 	
-	currentAbstractStack  ssPopTopToReg: arrayReg.
-	currentAbstractStack  ssPopTopToReg: indexReg.
+	currentAbstractStack ssPopTopToReg: arrayReg.
+	currentAbstractStack ssPopTopToReg: indexReg.
 	self AddCq: objectMemory baseHeaderSize R: arrayReg.
 
 	"The index is a SmallInteger, so it is shifted left 3 and plus 1. So, as we need to untag it and then shift it 3 (for getting number of bytes from number of elements), we just substract 1. 
@@ -2585,11 +2504,10 @@ StackToRegisterMappingCogit >> genStoreFloat64RegisterIntoArray [
 	self SubCq: 1 R: indexReg.
 	self AddR: indexReg R: arrayReg.
 	
-	vectorReg := currentAbstractStack  allocateVectorRegForStackEntryAt: 0 notConflictingWith: 0.
-	currentAbstractStack  ssPopTopToVectorReg: vectorReg.
+	vectorReg := currentAbstractStack allocateVectorRegForStackEntryAt: 0 notConflictingWith: 0.
+	currentAbstractStack ssPopTopToVectorReg: vectorReg.
 	self St1S: 64 Vr: vectorReg R: arrayReg Mw: 0.
-	currentAbstractStack  ssPushRegister: arrayReg.
-	
+	currentAbstractStack ssPushRegister: arrayReg.
 	^0
 ]
 
@@ -2599,7 +2517,7 @@ StackToRegisterMappingCogit >> genStorePop: popBoolean LiteralVariable: litVarIn
 	^self 
 		genStorePop: popBoolean 
 		LiteralVariable: litVarIndex 
-		needsStoreCheck: self ssTopNeedsStoreCheck
+		needsStoreCheck: currentAbstractStack ssTopNeedsStoreCheck
 		needsImmutabilityCheck: true "The generic store checks for IMMUTABILITY flag"
 		
 ]
@@ -2627,7 +2545,7 @@ StackToRegisterMappingCogit >> genStorePop: popBoolean MaybeContextReceiverVaria
 	^self 
 		genStorePop: popBoolean 
 		MaybeContextReceiverVariable: slotIndex 
-		needsStoreCheck: self ssTopNeedsStoreCheck
+		needsStoreCheck: currentAbstractStack ssTopNeedsStoreCheck
 		needsImmutabilityCheck: true "The generic store checks for IMMUTABILITY flag"
 ]
 
@@ -2638,7 +2556,7 @@ StackToRegisterMappingCogit >> genStorePop: popBoolean MaybeContextReceiverVaria
 	 involve wholesale reorganization of stack pages, and the only way to preserve the
 	 execution state of an activation in that case is if it has a frame."
 	self assert: needsFrame.
-	self ssFlushUpThroughReceiverVariable: slotIndex.
+	currentAbstractStack ssFlushUpThroughReceiverVariable: slotIndex.
 	self ensureReceiverResultRegContainsSelf.
 	^self 
 		genGenericStorePop: popBoolean 
@@ -2670,7 +2588,7 @@ StackToRegisterMappingCogit >> genStorePop: popBoolean ReceiverVariable: slotInd
 	^self 
 		genStorePop: popBoolean 
 		ReceiverVariable: slotIndex 
-		needsStoreCheck: currentAbstractStack  ssTopNeedsStoreCheck
+		needsStoreCheck: currentAbstractStack ssTopNeedsStoreCheck
 		needsImmutabilityCheck: true "The generic store checks for IMMUTABILITY flag"
 		
 ]
@@ -2708,7 +2626,7 @@ StackToRegisterMappingCogit >> genStorePop: popBoolean RemoteInstVar: slotIndex 
 { #category : 'bytecode generator stores' }
 StackToRegisterMappingCogit >> genStorePop: popBoolean RemoteTemp: slotIndex At: remoteTempIndex [
 	<inline: true>
-	^ self genStorePop: popBoolean RemoteTemp: slotIndex At: remoteTempIndex needsStoreCheck: self ssTopNeedsStoreCheck
+	^ self genStorePop: popBoolean RemoteTemp: slotIndex At: remoteTempIndex needsStoreCheck: currentAbstractStack ssTopNeedsStoreCheck
 ]
 
 { #category : 'bytecode generator stores' }
@@ -2724,8 +2642,8 @@ StackToRegisterMappingCogit >> genStorePop: popBoolean RemoteTemp: slotIndex At:
 	self assert: needsFrame.
 	"N.B.  No need to check the stack for references because we generate code for
 	 remote temp loads that stores the result in a register, deferring only the register push."
-	self ssAllocateRequiredReg: ReceiverResultReg. 
-	self voidReceiverResultRegContainsSelf.
+	currentAbstractStack ssAllocateRequiredReg: ReceiverResultReg. 
+	currentAbstractStack voidReceiverResultRegContainsSelf.
 	self MoveMw: (self frameOffsetOfTemporary: remoteTempIndex) r: FPReg R: ReceiverResultReg.
 	TempVectReadBarrier
 		ifTrue: [objectRepresentation
@@ -2799,7 +2717,7 @@ StackToRegisterMappingCogit >> genUpArrowReturn [
 	deadCode := true. "can't fall through"
 	inBlock > 0 ifTrue:
 		[self assert: needsFrame.
-		 self ssSpillStack.
+		 currentAbstractStack ssSpillStack.
 		 self CallRT: ceNonLocalReturnTrampoline.
 		 self annotateBytecode: self Label.
 		 ^0].
@@ -3225,7 +3143,7 @@ StackToRegisterMappingCogit >> marshallSendArguments: numArgs [
 						copyToReg: ReceiverResultReg;
 						type: SSRegister;
 						registerr: ReceiverResultReg.
-					currentAbstractStack  ssSpillStack ].
+					currentAbstractStack ssSpillStack ].
 
 			"Pop from the stack, so that subsequent compilation in this unit make as if they were popped.
 			However, but do not discard the entries in the runtime stack (do not generate pops).
@@ -3953,7 +3871,7 @@ StackToRegisterMappingCogit >> sistaNeedsStoreCheck [
 	<inline: true>
 	"The store check can be ignored if the value assigned doesn't need it (immediate, etc)
 	In addition, the extB low bit is marked by the optimizer if the store check is not required"
-	^ self ssTopNeedsStoreCheck and: [ self extBSpecifiesStoreCheck ]
+	^ currentAbstractStack ssTopNeedsStoreCheck and: [ self extBSpecifiesStoreCheck ]
 ]
 
 { #category : 'span functions' }
@@ -4059,12 +3977,12 @@ StackToRegisterMappingCogit >> tryCollapseTempVectorInitializationOfSize: slots 
 
 	objectRepresentation genNewArrayOfSize: 1 initialized: false.
 	self evaluate: pushValueDesc at: bytecodePC + pushArrayDesc numBytes + storeArrayDesc numBytes.
-	reg := self ssStorePop: true toPreferredReg: TempReg.
+	reg := currentAbstractStack ssStorePop: true toPreferredReg: TempReg.
 	objectRepresentation
 		genStoreSourceReg: reg
 		slotIndex: 0
 		intoNewObjectInDestReg: ReceiverResultReg.
-	self ssPushRegister: ReceiverResultReg.
+	currentAbstractStack ssPushRegister: ReceiverResultReg.
 	self evaluate: storeArrayDesc at: bytecodePC + pushArrayDesc numBytes.
 	bytecodePC := bytecodePC
 					"+ pushArrayDesc numBytes this gets added by nextBytecodePCFor:at:exts:in:"

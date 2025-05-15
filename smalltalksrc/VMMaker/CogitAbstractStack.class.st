@@ -1,6 +1,6 @@
 Class {
 	#name : 'CogitAbstractStack',
-	#superclass : 'VMClass',
+	#superclass : 'VMStructType',
 	#instVars : [
 		'simStackPtr',
 		'simSpillBase',
@@ -27,18 +27,6 @@ CogitAbstractStack class >> instVarNamesAndTypesForTranslationDo: aBinaryBlock [
 					 ([ 'simStackPtr' ] -> [ #sqInt ]).
 					 ([ 'simSpillBase' ] -> [ #sqInt ]).
 					 ([ 'simStack' ] -> [ #'sqInt *' ]) }) ]
-]
-
-{ #category : 'translation' }
-CogitAbstractStack class >> isNonArgumentImplicitReceiverVariableName: aString [
-
-	^ false "#( 'cogit' ) includes: aString"
-]
-
-{ #category : 'translation' }
-CogitAbstractStack class >> typeForSelf [
-
-	^ #implicit
 ]
 
 { #category : 'bytecode generator support' }
@@ -75,7 +63,7 @@ CogitAbstractStack >> allocateEqualsEqualsRegistersArgNeedsReg: argNeedsReg rcvr
 CogitAbstractStack >> allocateFloatRegNotConflictingWith: regMask [
 	| reg |
 	"if there's a free register, use it"
-	reg := self backEnd availableFloatRegisterOrNoneFor: (self liveFloatRegisters bitOr: regMask).
+	reg := cogit backEnd availableFloatRegisterOrNoneFor: (self liveFloatRegisters bitOr: regMask).
 	reg = NoReg ifTrue: "No free register, choose one that does not conflict with regMask"
 		[reg := self freeAnyFloatRegNotConflictingWith: regMask].
 	^ reg
@@ -117,45 +105,6 @@ CogitAbstractStack >> allocateRegForStackEntryAt: index notConflictingWith: regM
 		register."
 		 ^stackEntry registerOrNone].
 	^self allocateRegNotConflictingWith: regMask
-]
-
-{ #category : 'simulation stack' }
-CogitAbstractStack >> allocateRegForStackTopThreeEntriesInto: trinaryBlock thirdIsReceiver: thirdIsReceiver [
-	"Answers registers for the 3 top values on stack. If the values are already in registers, answers
-	these registers, else allocate registers not conflicting with each others.
-	If thirdIsReceiver is true, allocate ReceiverResultReg for stackTop - 2 (for ceStoreCheck)."
-	<inline: true>
-	| topRegistersMask rTop rNext rThird |
-	
-	topRegistersMask := 0.
-	rTop := rNext := rThird := NoReg.
-	
-	(self ssTop registerOrNone ~= NoReg and: [ thirdIsReceiver not or: [ self ssTop registerOrNone ~= ReceiverResultReg ] ]) ifTrue: 
-		[ topRegistersMask := self registerMaskFor: (rTop := self ssTop registerOrNone)].
-	((self ssValue: 1) registerOrNone ~= NoReg and: [ thirdIsReceiver not or: [ (self ssValue: 1) registerOrNone ~= ReceiverResultReg ] ]) ifTrue: 
-		[ topRegistersMask := topRegistersMask bitOr: (self registerMaskFor: (rNext := (self ssValue: 1) registerOrNone))].
-	((self ssValue: 2) registerOrNone ~= NoReg and: [thirdIsReceiver not or: [ (self ssValue: 2) registerOrNone = ReceiverResultReg ] ]) ifTrue: 
-		[ topRegistersMask := topRegistersMask bitOr: (self registerMaskFor: (rThird := (self ssValue: 2) registerOrNone))].
-	
-	rThird = NoReg ifTrue:
-		[ thirdIsReceiver 
-			ifTrue:
-				[ rThird := ReceiverResultReg.  "Free ReceiverResultReg if it was not free"
-				self ssAllocateRequiredReg: ReceiverResultReg.
-				self voidReceiverResultRegContainsSelf ]
-			ifFalse: [ rThird := self allocateRegNotConflictingWith: topRegistersMask ].
-		topRegistersMask := topRegistersMask bitOr: (self registerMaskFor: rThird) ].
-	
-	rTop = NoReg ifTrue:
-		[ rTop := self allocateRegNotConflictingWith: topRegistersMask.
-		  topRegistersMask := topRegistersMask bitOr: (self registerMaskFor: rTop) ].
-	
-	rNext = NoReg ifTrue:
-		[ rNext := self allocateRegNotConflictingWith: topRegistersMask ].
-
-	self deny: (rTop = NoReg or: [rNext = NoReg or: [rThird = NoReg]]).
-
-	^ trinaryBlock value: rTop value: rNext value: rThird
 ]
 
 { #category : 'simulation stack' }
@@ -237,20 +186,9 @@ CogitAbstractStack >> allocateVectorRegNotConflictingWith: regMask [
 ]
 
 { #category : 'simulation stack' }
-CogitAbstractStack >> anyReferencesToRegister: reg inAllButTopNItems: n [
-	| regMask |
-	regMask := self registerMaskFor: reg.
-	simStackPtr - n to: 0 by: -1 do:
-		[:i|
-		((self simStackAt: i) registerMask anyMask: regMask) ifTrue:
-			[^true]].
-	^false
-]
-
-{ #category : 'simulation stack' }
 CogitAbstractStack >> anyReferencesToRegister: reg inTopNItems: n [
 	| regMask |
-	regMask := self registerMaskFor: reg.
+	regMask := cogit registerMaskFor: reg.
 	simStackPtr to: simStackPtr - n + 1 by: -1 do:
 		[:i|
 		((self simStackAt: i) registerMask anyMask: regMask) ifTrue:
@@ -337,7 +275,7 @@ CogitAbstractStack >> freeAnyRegNotConflictingWith: regMask [
 		[ | desc |
 		 desc := self simStackAt: index.
 		 desc type = SSRegister ifTrue:
-			[(regMask anyMask: (self registerMaskFor: desc registerr)) ifFalse: 
+			[(regMask anyMask: (cogit registerMaskFor: desc registerr)) ifFalse: 
 				[reg := desc registerr]].
 		 index := index + 1].
 	self deny: reg = NoReg.
@@ -394,12 +332,12 @@ CogitAbstractStack >> liveRegisters [
 	self needsFrame
 		ifTrue: [regsSet := 0]
 		ifFalse:
-			[regsSet := self registerMaskFor: ReceiverResultReg.
-			 (self methodOrBlockNumArgs <= self numRegArgs
-			  and: [self methodOrBlockNumArgs > 0]) ifTrue:
-				[regsSet := regsSet bitOr: (self registerMaskFor: Arg0Reg).
-				 (self numRegArgs > 1 and: [self methodOrBlockNumArgs > 1]) ifTrue:
-					[regsSet := regsSet bitOr: (self registerMaskFor: Arg1Reg)]]].
+			[regsSet := cogit registerMaskFor: ReceiverResultReg.
+			 (cogit methodOrBlockNumArgs <= cogit numRegArgs
+			  and: [cogit methodOrBlockNumArgs > 0]) ifTrue:
+				[regsSet := regsSet bitOr: (cogit registerMaskFor: Arg0Reg).
+				 (cogit numRegArgs > 1 and: [cogit methodOrBlockNumArgs > 1]) ifTrue:
+					[regsSet := regsSet bitOr: (cogit registerMaskFor: Arg1Reg)]]].
 	(simSpillBase max: 0) to: simStackPtr do:
 		[:i|
 		regsSet := regsSet bitOr: (self simStackAt: i) registerMask].
@@ -525,7 +463,7 @@ CogitAbstractStack >> ssAllocateCallReg: requiredReg [
 	 all caller-saved registers also flush all caller-saved registers."
 	<inline: true>
 	self ssAllocateRequiredRegMask: (CallerSavedRegisterMask
-										bitOr: (self registerMaskFor: requiredReg))
+										bitOr: (cogit registerMaskFor: requiredReg))
 		upThrough: simStackPtr
 ]
 
@@ -536,8 +474,8 @@ CogitAbstractStack >> ssAllocateCallReg: requiredReg1 and: requiredReg2 [
 	 all caller-saved registers also flush all caller-saved registers."
 	<inline: true>
 	self ssAllocateRequiredRegMask: (CallerSavedRegisterMask
-										bitOr: ((self registerMaskFor: requiredReg1)
-										bitOr: (self registerMaskFor: requiredReg2)))
+										bitOr: ((cogit registerMaskFor: requiredReg1)
+										bitOr: (cogit registerMaskFor: requiredReg2)))
 		upThrough: simStackPtr
 ]
 
@@ -548,7 +486,7 @@ CogitAbstractStack >> ssAllocateCallReg: requiredReg1 and: requiredReg2 and: req
 	 all caller-saved registers also flush all caller-saved registers."
 	<inline: true>
 	self ssAllocateRequiredRegMask: (CallerSavedRegisterMask bitOr:
-										(self registerMaskFor: requiredReg1 and: requiredReg2 and: requiredReg3))
+										(cogit registerMaskFor: requiredReg1 and: requiredReg2 and: requiredReg3))
 		upThrough: simStackPtr
 ]
 
@@ -559,10 +497,10 @@ CogitAbstractStack >> ssAllocateCallReg: requiredReg1 and: requiredReg2 and: req
 	 all caller-saved registers also flush all caller-saved registers."
 	<inline: true>
 	self ssAllocateRequiredRegMask: (CallerSavedRegisterMask
-										bitOr: ((self registerMaskFor: requiredReg1)
-										bitOr: ((self registerMaskFor: requiredReg2)
-										bitOr: ((self registerMaskFor: requiredReg3)
-										bitOr: (self registerMaskFor: requiredReg4)))))
+										bitOr: ((cogit registerMaskFor: requiredReg1)
+										bitOr: ((cogit registerMaskFor: requiredReg2)
+										bitOr: ((cogit registerMaskFor: requiredReg3)
+										bitOr: (cogit registerMaskFor: requiredReg4)))))
 		upThrough: simStackPtr
 ]
 
@@ -641,7 +579,7 @@ CogitAbstractStack >> ssAllocateRegistersForceSpilling: forceSpilling [
 
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssAllocateRequiredFloatReg: requiredReg [
-	self ssAllocateRequiredFloatRegMask: (self registerMaskFor: requiredReg)
+	self ssAllocateRequiredFloatRegMask: (cogit registerMaskFor: requiredReg)
 		upThrough: simStackPtr
 ]
 
@@ -677,16 +615,16 @@ CogitAbstractStack >> ssAllocateRequiredReg: requiredReg [
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssAllocateRequiredReg: requiredReg1 and: requiredReg2 [
 	<inline: true>
-	self ssAllocateRequiredRegMask: ((self registerMaskFor: requiredReg1)
-										bitOr: (self registerMaskFor: requiredReg2))
+	self ssAllocateRequiredRegMask: ((cogit registerMaskFor: requiredReg1)
+										bitOr: (cogit registerMaskFor: requiredReg2))
 		upThrough: simStackPtr
 ]
 
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssAllocateRequiredReg: requiredReg1 and: requiredReg2 upThrough: stackPointer [
 	<inline: true>
-	self ssAllocateRequiredRegMask: ((self registerMaskFor: requiredReg1)
-										bitOr: (self registerMaskFor: requiredReg2))
+	self ssAllocateRequiredRegMask: ((cogit registerMaskFor: requiredReg1)
+										bitOr: (cogit registerMaskFor: requiredReg2))
 		upThrough: stackPointer
 ]
 
@@ -751,7 +689,7 @@ CogitAbstractStack >> ssFlushUpThroughReceiverVariable: slotIndex [
 		[ :desc |  
 			desc type = SSBaseOffset
 			 and: [desc registerr = ReceiverResultReg
-			 and: [desc offset = (self objectRepresentation slotOffsetOfInstVarIndex: slotIndex) ] ] ]
+			 and: [desc offset = (cogit objectRepresentation slotOffsetOfInstVarIndex: slotIndex) ] ] ]
 ]
 
 { #category : 'simulation stack' }
@@ -841,7 +779,7 @@ CogitAbstractStack >> ssPush: n [
 { #category : 'simulation stack' }
 CogitAbstractStack >> ssPushAnnotatedConstant: literal [
 	self ssPushConstant: literal.
-	self annotateInstructionForBytecode.
+	cogit annotateInstructionForBytecode.
 	^0
 ]
 
@@ -1002,8 +940,8 @@ CogitAbstractStack >> ssTopDescriptor [
 CogitAbstractStack >> ssTopNeedsStoreCheck [
 	<inline: true>
 	^self ssTop type ~= SSConstant
-	  or: [(self objectMemory isNonImmediate: self ssTop constant)
-		and: [self objectRepresentation shouldAnnotateObjectReference:  self ssTop constant]]
+	  or: [(cogit objectMemory isNonImmediate: self ssTop constant)
+		and: [cogit objectRepresentation shouldAnnotateObjectReference:  self ssTop constant]]
 ]
 
 { #category : 'simulation stack' }
