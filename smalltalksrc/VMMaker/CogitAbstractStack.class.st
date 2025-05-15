@@ -30,6 +30,12 @@ CogitAbstractStack class >> instVarNamesAndTypesForTranslationDo: aBinaryBlock [
 ]
 
 { #category : 'translation' }
+CogitAbstractStack class >> isNonArgumentImplicitReceiverVariableName: aString [
+
+	^ false "#( 'cogit' ) includes: aString"
+]
+
+{ #category : 'translation' }
 CogitAbstractStack class >> typeForSelf [
 
 	^ #implicit

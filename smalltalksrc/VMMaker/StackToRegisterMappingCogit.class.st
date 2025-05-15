@@ -220,8 +220,6 @@ StackToRegisterMappingCogit class >> callingConvention [
 { #category : 'translation' }
 StackToRegisterMappingCogit class >> declareCVarsIn: aCodeGen [
 	aCodeGen
-		var: #currentAbstractStack
-			type: #implicit;
 		var: #methodAbortTrampolines
 			declareC: 'sqInt methodAbortTrampolines[4]';
 		var: #picAbortTrampolines
@@ -422,6 +420,13 @@ StackToRegisterMappingCogit class >> isAcceptableAncilliaryClass: aClass [
 			[(aClass includesBehavior: CogSimStackEntry)
 				ifTrue: [aClass == CogitAbstractStack basicNew simStackEntryClass]
 				ifFalse: [true]]
+]
+
+{ #category : 'translation' }
+StackToRegisterMappingCogit class >> isNonArgumentImplicitReceiverVariableName: aString [
+
+	^ aString = 'currentAbstractStack' or: [
+		  super isNonArgumentImplicitReceiverVariableName: aString ]
 ]
 
 { #category : 'translation' }
