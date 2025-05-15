@@ -425,6 +425,18 @@ CogitAbstractStack >> simSpillBase: anInteger [
 	simSpillBase := anInteger
 ]
 
+{ #category : 'accessing' }
+CogitAbstractStack >> simStack [
+
+	^ simStack
+]
+
+{ #category : 'accessing' }
+CogitAbstractStack >> simStack: aSimStack [
+
+	simStack := aSimStack
+]
+
 { #category : 'simulation stack' }
 CogitAbstractStack >> simStackAt: index [
 	<cmacro: '(index) (simStack + (index))'>
