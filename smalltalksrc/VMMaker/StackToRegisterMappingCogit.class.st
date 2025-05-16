@@ -3090,7 +3090,6 @@ StackToRegisterMappingCogit >> initializeFixup: fixup [
 	<var: #fixup type: #'BytecodeFixup *'>
 	<inline: true>
 	fixup
-		simStackPtr: currentAbstractStack theSimStackPtr;
 		becomeMergeFixup;
 		setIsBackwardBranchFixup
 ]
