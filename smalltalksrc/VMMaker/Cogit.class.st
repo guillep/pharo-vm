@@ -9900,6 +9900,13 @@ Cogit >> mnuOffset [
 	^missOffset
 ]
 
+{ #category : 'accessing' }
+Cogit >> needsFrame [
+
+	<inline: true>
+	^ needsFrame
+]
+
 { #category : 'compile abstract instructions' }
 Cogit >> needsFrameIfImmutability: stackDelta [
 	^ IMMUTABILITY
