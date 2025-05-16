@@ -35,7 +35,7 @@ VMAbstractStackRegisterAllocationTest >> setUp [
 	cogit initSimStackPointer: 0.
 	
 	"Initialize the self stack entry as spilled relative to the frame pointer"
-	cogit currentAbstractStack simSelf
+	cogit getCurrentAbstractStack simSelf
 		type: SSBaseOffset;
 		spilled: true;
 		registerr: FPReg;
@@ -45,16 +45,16 @@ VMAbstractStackRegisterAllocationTest >> setUp [
 	"Spilling only works on frameful compilation"
 	cogit needsFrame: true.
 	
-	currentAbstractStack := cogit currentAbstractStack.
+	currentAbstractStack := cogit getCurrentAbstractStack.
 ]
 
 { #category : 'as yet unclassified' }
 VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndConstant [
 
 	| branchIncomingStack fallthroughStack i1 i2 someFreeRegister |
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra1Reg.
 	branchIncomingStack ssPushRegister: Extra0Reg.
@@ -67,14 +67,14 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndConstant [
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack top was merged into a register!"
-	self deny: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self deny: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 
 	"The entry before is now in Extra1Reg"
-	self deny: (cogit currentAbstractStack simStackAt: 1) spilled.
-	self assert: (cogit currentAbstractStack simStackAt: 1) type equals: SSRegister.
-	self assert: (cogit currentAbstractStack simStackAt: 1) registerr equals: Extra1Reg.
+	self deny: (cogit getCurrentAbstractStack simStackAt: 1) spilled.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) type equals: SSRegister.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) registerr equals: Extra1Reg.
 	
 	"The last generated instructions should be
 
@@ -96,9 +96,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndConstant [
 VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndConstantAndConflictOnSecondSlot [
 
 	| branchIncomingStack fallthroughStack i1 i2 i3 someFreeRegister |
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra2Reg.
 	branchIncomingStack ssPushRegister: Extra0Reg.
@@ -111,14 +111,14 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndConstantAndConf
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack top was merged into a register!"
-	self deny: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self deny: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 
 	"The entry before is now in Extra2Reg"
-	self deny: (cogit currentAbstractStack simStackAt: 1) spilled.
-	self assert: (cogit currentAbstractStack simStackAt: 1) type equals: SSRegister.
-	self assert: (cogit currentAbstractStack simStackAt: 1) registerr equals: Extra2Reg.
+	self deny: (cogit getCurrentAbstractStack simStackAt: 1) spilled.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) type equals: SSRegister.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) registerr equals: Extra2Reg.
 	
 	"The last generated instructions should be
 
@@ -148,9 +148,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndMemory [
 	| branchIncomingStack fallthroughStack opcodeBeforeMerge base offset i2 i1 i3 |
 	opcodeBeforeMerge := cogit lastOpcode.
 	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra2Reg.
 	branchIncomingStack ssPushRegister: Extra0Reg.
@@ -161,14 +161,14 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndMemory [
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack top was merged into a register!"
-	self deny: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self deny: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 
 	"The entry before is now in Extra2Reg"
-	self deny: (cogit currentAbstractStack simStackAt: 1) spilled.
-	self assert: (cogit currentAbstractStack simStackAt: 1) type equals: SSRegister.
-	self assert: (cogit currentAbstractStack simStackAt: 1) registerr equals: Extra2Reg.
+	self deny: (cogit getCurrentAbstractStack simStackAt: 1) spilled.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) type equals: SSRegister.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) registerr equals: Extra2Reg.
 	
 	"The last generated instructions should be
 
@@ -199,9 +199,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndOtherRegister [
 	| branchIncomingStack fallthroughStack opcodeBeforeMerge i1 i3 |
 	opcodeBeforeMerge := cogit lastOpcode.
 	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra2Reg.
 	branchIncomingStack ssPushRegister: Extra0Reg.
@@ -212,14 +212,14 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndOtherRegister [
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack top was merged into a register!"
-	self deny: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self deny: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 
 	"The entry before is now in Extra2Reg"
-	self deny: (cogit currentAbstractStack simStackAt: 1) spilled.
-	self assert: (cogit currentAbstractStack simStackAt: 1) type equals: SSRegister.
-	self assert: (cogit currentAbstractStack simStackAt: 1) registerr equals: Extra2Reg.
+	self deny: (cogit getCurrentAbstractStack simStackAt: 1) spilled.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) type equals: SSRegister.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) registerr equals: Extra2Reg.
 	
 	"The last generated instructions should be
 
@@ -243,9 +243,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndSameRegister [
 	| branchIncomingStack fallthroughStack opcodeBeforeMerge i1 |
 	opcodeBeforeMerge := cogit lastOpcode.
 	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra2Reg.
 	branchIncomingStack ssPushRegister: Extra1Reg.
@@ -256,14 +256,14 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndSameRegister [
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack top was merged into a register!"
-	self deny: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra1Reg.
+	self deny: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra1Reg.
 
 	"The entry before is now in Extra2Reg"
-	self deny: (cogit currentAbstractStack simStackAt: 1) spilled.
-	self assert: (cogit currentAbstractStack simStackAt: 1) type equals: SSRegister.
-	self assert: (cogit currentAbstractStack simStackAt: 1) registerr equals: Extra2Reg.
+	self deny: (cogit getCurrentAbstractStack simStackAt: 1) spilled.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) type equals: SSRegister.
+	self assert: (cogit getCurrentAbstractStack simStackAt: 1) registerr equals: Extra2Reg.
 	
 	"The last generated instructions should be
 
@@ -279,9 +279,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeLiveRegisterAndSameRegister [
 VMAbstractStackRegisterAllocationTest >> testMergeNotLiveRegisterAndConstant [
 
 	| branchIncomingStack fallthroughStack |
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	fallthroughStack ssPushConstant: 17.
@@ -289,9 +289,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeNotLiveRegisterAndConstant [
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack was merged into a register!"
-	self deny: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self deny: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 	
 	"The last generated instruction should be a copy Extra0Reg := 17"
 	self assert: cogit lastOpcode opcode equals: MoveCqR.
@@ -305,9 +305,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeNotLiveRegisterAndMemory [
 	| branchIncomingStack fallthroughStack opcodeBeforeMerge base offset |
 	opcodeBeforeMerge := cogit lastOpcode.
 	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	fallthroughStack ssPushBase: (base := FPReg) offset: (offset := 0).
@@ -315,9 +315,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeNotLiveRegisterAndMemory [
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack was merged into the incoming register Extra0Reg!"
-	self deny: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self deny: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 	
 	"The last generated instruction should be a copy Extra0Reg := LOAD [FP,0]"
 	self assert: cogit lastOpcode opcode equals: MoveMwrR.
@@ -332,9 +332,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeNotLiveRegisterAndOtherRegiste
 	| branchIncomingStack fallthroughStack opcodeBeforeMerge |
 	opcodeBeforeMerge := cogit lastOpcode.
 	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	fallthroughStack ssPushRegister: Extra1Reg.
@@ -342,9 +342,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeNotLiveRegisterAndOtherRegiste
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack was merged into the incoming register Extra0Reg!"
-	self deny: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self deny: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 	
 	"The last generated instruction should be a copy Extra0Reg := Extra1Reg"
 	self assert: cogit lastOpcode opcode equals: MoveRR.
@@ -358,9 +358,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeNotLiveRegisterAndSameRegister
 	| branchIncomingStack fallthroughStack opcodeBeforeMerge |
 	opcodeBeforeMerge := cogit lastOpcode.
 	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	fallthroughStack ssPushRegister: Extra0Reg.
@@ -368,9 +368,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeNotLiveRegisterAndSameRegister
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack was merged into a register!"
-	self deny: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self deny: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 	
 	"The last generated instruction is the same as before"
 	self assert: cogit lastOpcode equals: opcodeBeforeMerge
@@ -387,9 +387,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeRegisterAndSpilledConstant [
 	| branchIncomingStack fallthroughStack opcodeBeforeMerge |
 	opcodeBeforeMerge := cogit lastOpcode.
 	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	fallthroughStack ssPushConstant: 17.
@@ -399,9 +399,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeRegisterAndSpilledConstant [
 	
 	"The abstract stack was merged into the incoming register Extra0Reg!
 	The spilling should be the same in both stacks"
-	self assert: cogit currentAbstractStack ssTop spilled equals: branchIncomingStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self assert: cogit getCurrentAbstractStack ssTop spilled equals: branchIncomingStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 	
 	"The last generated instruction should be a copy Extra0Reg := Pop"
 	self assert: cogit lastOpcode opcode equals: PopR.
@@ -419,9 +419,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeRegisterAndSpilledMemoryAccess
 	| branchIncomingStack fallthroughStack opcodeBeforeMerge base offset |
 	opcodeBeforeMerge := cogit lastOpcode.
 	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	fallthroughStack ssPushBase: (base := FPReg) offset: (offset := 0).
@@ -431,9 +431,9 @@ VMAbstractStackRegisterAllocationTest >> testMergeRegisterAndSpilledMemoryAccess
 	
 	"The abstract stack was merged into the incoming register Extra0Reg!
 	The spilling should be the same in both stacks"
-	self assert: cogit currentAbstractStack ssTop spilled equals: branchIncomingStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSRegister.
-	self assert: cogit currentAbstractStack ssTop registerr equals: Extra0Reg.
+	self assert: cogit getCurrentAbstractStack ssTop spilled equals: branchIncomingStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSRegister.
+	self assert: cogit getCurrentAbstractStack ssTop registerr equals: Extra0Reg.
 	
 	"The last generated instruction should be a copy Extra0Reg := Pop"
 	self assert: cogit lastOpcode opcode equals: PopR.
@@ -444,22 +444,22 @@ VMAbstractStackRegisterAllocationTest >> testMergeRegisterAndSpilledMemoryAccess
 VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndConstant [
 
 	| branchIncomingStack fallthroughStack i1 i2 |
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	branchIncomingStack ssSpillStack.
 
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	fallthroughStack ssPushConstant: 17.
 	
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack was merged into a spill slot!"
-	self assert: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSSpill.
-	self assert: cogit currentAbstractStack ssTop base equals: FPReg.
-	self assert: cogit currentAbstractStack ssTop offset equals: -32.
+	self assert: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSSpill.
+	self assert: cogit getCurrentAbstractStack ssTop base equals: FPReg.
+	self assert: cogit getCurrentAbstractStack ssTop offset equals: -32.
 	
 	"The last generated instructions should be
 		TempReg := 17.
@@ -481,22 +481,22 @@ VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndConstant [
 VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndMemory [
 
 	| branchIncomingStack fallthroughStack i1 i2 |	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	branchIncomingStack ssSpillStack.
 
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	fallthroughStack ssPushBase: FPReg offset: 17.
 
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack was merged into a spill slot!"
-	self assert: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSSpill.
-	self assert: cogit currentAbstractStack ssTop base equals: FPReg.
-	self assert: cogit currentAbstractStack ssTop offset equals: -32.
+	self assert: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSSpill.
+	self assert: cogit getCurrentAbstractStack ssTop base equals: FPReg.
+	self assert: cogit getCurrentAbstractStack ssTop offset equals: -32.
 	
 	"The last generated instructions should be
 		TempReg := Load [FPReg, 17].
@@ -519,22 +519,22 @@ VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndMemory [
 VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndNotLiveRegister [
 
 	| branchIncomingStack fallthroughStack i2 |
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	branchIncomingStack ssSpillStack.
 
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	fallthroughStack ssPushRegister: FPReg.
 	
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack was merged into a spill slot!"
-	self assert: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSSpill.
-	self assert: cogit currentAbstractStack ssTop base equals: FPReg.
-	self assert: cogit currentAbstractStack ssTop offset equals: -32.
+	self assert: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSSpill.
+	self assert: cogit getCurrentAbstractStack ssTop base equals: FPReg.
+	self assert: cogit getCurrentAbstractStack ssTop offset equals: -32.
 	
 	"The last generated instructions should be
 		Store FPReg [FPReg, -32]"
@@ -549,13 +549,13 @@ VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndNotLiveRegister [
 VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndSpillSlot [
 
 	| branchIncomingStack fallthroughStack |	
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	branchIncomingStack ssSpillStack.
 
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	fallthroughStack ssPushBase: FPReg offset: 17.
 	fallthroughStack ssSpillStack.
 	
@@ -564,10 +564,10 @@ VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndSpillSlot [
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack was merged into a spill slot!"
-	self assert: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSSpill.
-	self assert: cogit currentAbstractStack ssTop base equals: FPReg.
-	self assert: cogit currentAbstractStack ssTop offset equals: -32.
+	self assert: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSSpill.
+	self assert: cogit getCurrentAbstractStack ssTop base equals: FPReg.
+	self assert: cogit getCurrentAbstractStack ssTop offset equals: -32.
 	
 	"No instructions should be generated.
 	Check that the canary instruction is there."
@@ -578,13 +578,13 @@ VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndSpillSlot [
 VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndSpilledConstant [
 
 	| branchIncomingStack fallthroughStack |
-	branchIncomingStack := cogit currentAbstractStack.
+	branchIncomingStack := cogit getCurrentAbstractStack.
 	cogit copyAbstractStack.
 	
 	branchIncomingStack ssPushRegister: Extra0Reg.
 	branchIncomingStack ssSpillStack.
 
-	fallthroughStack := cogit currentAbstractStack.
+	fallthroughStack := cogit getCurrentAbstractStack.
 	fallthroughStack ssPushConstant: 17.
 	fallthroughStack ssSpillStack.
 	
@@ -593,10 +593,10 @@ VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndSpilledConstant [
 	cogit mergeIncomingBranchStack: branchIncomingStack.
 	
 	"The abstract stack was merged into a spill slot!"
-	self assert: cogit currentAbstractStack ssTop spilled.
-	self assert: cogit currentAbstractStack ssTop type equals: SSSpill.
-	self assert: cogit currentAbstractStack ssTop base equals: FPReg.
-	self assert: cogit currentAbstractStack ssTop offset equals: -32.
+	self assert: cogit getCurrentAbstractStack ssTop spilled.
+	self assert: cogit getCurrentAbstractStack ssTop type equals: SSSpill.
+	self assert: cogit getCurrentAbstractStack ssTop base equals: FPReg.
+	self assert: cogit getCurrentAbstractStack ssTop offset equals: -32.
 	
 	"No instructions should be generated.
 	Check that the canary instruction is there."
@@ -607,12 +607,12 @@ VMAbstractStackRegisterAllocationTest >> testMergeSpillSlotAndSpilledConstant [
 VMAbstractStackRegisterAllocationTest >> testPopInCopyDoesNotAffectOriginal [
 
 	| previousStack sizeBefore |
-	previousStack := cogit currentAbstractStack.
+	previousStack := cogit getCurrentAbstractStack.
 	previousStack ssPushConstant: 17.
 	
-	sizeBefore := cogit currentAbstractStack ssSize.
+	sizeBefore := cogit getCurrentAbstractStack ssSize.
 	cogit copyAbstractStack.
-	cogit currentAbstractStack ssPop: 1.
+	cogit getCurrentAbstractStack ssPop: 1.
 	
 	self assert: previousStack ssSize equals: sizeBefore
 ]
@@ -621,10 +621,10 @@ VMAbstractStackRegisterAllocationTest >> testPopInCopyDoesNotAffectOriginal [
 VMAbstractStackRegisterAllocationTest >> testPushInCopyDoesNotAffectOriginal [
 
 	| previousStack sizeBefore |
-	previousStack := cogit currentAbstractStack.
-	sizeBefore := cogit currentAbstractStack ssSize.
+	previousStack := cogit getCurrentAbstractStack.
+	sizeBefore := cogit getCurrentAbstractStack ssSize.
 	cogit copyAbstractStack.
-	cogit currentAbstractStack ssPushConstant: 17.
+	cogit getCurrentAbstractStack ssPushConstant: 17.
 	
 	self assert: previousStack ssSize equals: sizeBefore
 ]

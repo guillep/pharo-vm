@@ -821,13 +821,6 @@ StackToRegisterMappingCogit >> copyAbstractStack [
 ]
 
 { #category : 'accessing' }
-StackToRegisterMappingCogit >> currentAbstractStack [
-
-	<inline: true>
-	^ currentAbstractStack
-]
-
-{ #category : 'accessing' }
 StackToRegisterMappingCogit >> deadCode [
 	^ deadCode
 ]
@@ -2942,6 +2935,13 @@ StackToRegisterMappingCogit >> generateTracingTrampolines [
 		 ceTraceStoreTrampoline := self simulatedTrampolineFor: #ceShortCutTraceStore:]
 ]
 
+{ #category : 'accessing' }
+StackToRegisterMappingCogit >> getCurrentAbstractStack [
+
+	<inline: true>
+	^ currentAbstractStack
+]
+
 { #category : 'abstract stack' }
 StackToRegisterMappingCogit >> initSimStackForFramefulMethod: startpc [
 	<var: #desc type: #'CogSimStackEntry *'>
@@ -3216,12 +3216,12 @@ StackToRegisterMappingCogit >> mergeIncomingBranchStack: incomingBranchStack [
 	| fallthroughBranchStack |
 	<doNotGenerate>
 	self assert:
-		incomingBranchStack ssSize = self currentAbstractStack ssSize.
+		incomingBranchStack ssSize = self getCurrentAbstractStack ssSize.
 
 	"Merge element to element.
 	The fallthrough stack has been register allocated already.
 	So each stack element is either a register or a spilled slot."
-	fallthroughBranchStack := self currentAbstractStack.
+	fallthroughBranchStack := self getCurrentAbstractStack.
 	0 to: incomingBranchStack ssSize - 1 do: [ :index |
 		| fallthroughDescriptor incomingDescriptor |
 		fallthroughDescriptor := fallthroughBranchStack ssValue: index.
