@@ -3203,18 +3203,6 @@ StackToRegisterMappingCogit >> maybeCounterIndex [
 ]
 
 { #category : 'compile abstract instructions' }
-StackToRegisterMappingCogit >> maybeInitNumCounters [
-	"This is a hook for SistaCogit"
-	<inline: true>
-]
-
-{ #category : 'compile abstract instructions' }
-StackToRegisterMappingCogit >> maybeInitNumFixups [
-	"This is a hook for RegisterAllocatingCogit"
-	<inline: true>
-]
-
-{ #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> maybeSetCounterIndex: value [
 	"Hook for SistaCogit to allow it to reuse compileBlockBodies"
 	<inline: true>
@@ -3795,8 +3783,6 @@ StackToRegisterMappingCogit >> scanMethod [
 	| latestContinuation nExts descriptor pc distance targetPC framelessStackDelta seenInstVarStore |
 	<var: #descriptor type: #'BytecodeDescriptor *'>
 	needsFrame := useTwoPaths := seenInstVarStore := false.
-	self maybeInitNumFixups.
-	self maybeInitNumCounters.
 	prevBCDescriptor := nil.
 	(primitiveIndex > 0
 	 and: [coInterpreter isQuickPrimitiveIndex: primitiveIndex]) ifTrue:
