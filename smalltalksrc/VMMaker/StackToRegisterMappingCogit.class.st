@@ -822,6 +822,8 @@ StackToRegisterMappingCogit >> copyAbstractStack [
 
 { #category : 'accessing' }
 StackToRegisterMappingCogit >> currentAbstractStack [
+
+	<inline: true>
 	^ currentAbstractStack
 ]
 
