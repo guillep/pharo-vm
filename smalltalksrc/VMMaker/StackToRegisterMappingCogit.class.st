@@ -242,7 +242,7 @@ StackToRegisterMappingCogit class >> declareCVarsIn: aCodeGen [
 		var: 'prevBCDescriptor'
 			type: #'BytecodeDescriptor *';
 		var: 'currentAbstractStack'
-			type: #'CogitAbstractStack'.
+			type: #'CogitAbstractStack *'.
 
 	self numPushNilsFunction ifNotNil:
 		[aCodeGen
