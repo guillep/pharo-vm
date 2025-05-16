@@ -202,12 +202,12 @@ CogitAbstractStack >> assertCorrectSimStackPtr [
 	"Would like to assert simply simSpillBase > methodOrBlockNumTemps but can't because
 	 of the initialNils hack for nested blocks in SqueakV3PlusClosures"
 	self assert: (simSpillBase >= cogit getMethodOrBlockNumTemps).
-	(self needsFrame and: [simSpillBase > 0]) ifTrue:
+	(cogit needsFrame and: [simSpillBase > 0]) ifTrue:
 		[self assert: (self simStackAt: simSpillBase - 1) spilled == true.
 		 self assert: (simSpillBase > simStackPtr or: [(self simStackAt: simSpillBase) spilled == false])].
  	self cCode: '' inSmalltalk:
 		[cogit deadCode ifFalse:
-			[self assert: simStackPtr + (self needsFrame ifTrue: [0] ifFalse: [1])
+			[self assert: simStackPtr + (cogit needsFrame ifTrue: [0] ifFalse: [1])
 						= (cogit debugStackPointerFor: self bytecodePC)]].
 ]
 
@@ -254,7 +254,7 @@ CogitAbstractStack >> freeAnyFloatRegNotConflictingWith: regMask [
 	Assertion Failure if regMask has already all the registers"
 
 	| reg index |
-	self assert: self needsFrame.
+	self assert: cogit needsFrame.
 	reg := NoReg.
 	index := simSpillBase max: 0.
 	self deny: reg = NoReg.
@@ -268,7 +268,7 @@ CogitAbstractStack >> freeAnyRegNotConflictingWith: regMask [
 	Assertion Failure if regMask has already all the registers"
 	<var: #desc type: #'CogSimStackEntry *'>
 	| reg index |
-	self assert: self needsFrame.
+	self assert: cogit needsFrame.
 	reg := NoReg.
 	index := simSpillBase max: 0.
 	[reg = NoReg and: [index < simStackPtr]] whileTrue: 
@@ -329,7 +329,7 @@ CogitAbstractStack >> liveFloatRegisters [
 { #category : 'simulation stack' }
 CogitAbstractStack >> liveRegisters [
 	| regsSet |
-	self needsFrame
+	cogit needsFrame
 		ifTrue: [regsSet := 0]
 		ifFalse:
 			[regsSet := cogit registerMaskFor: ReceiverResultReg.
@@ -355,13 +355,6 @@ CogitAbstractStack >> liveVectorRegisters [
 		(ssEntry type = SSVectorRegister) ifTrue: [ 
 			regsSet := regsSet bitOr: ssEntry registerMask ] ].
 	^ regsSet
-]
-
-{ #category : 'testing' }
-CogitAbstractStack >> needsFrame [
-
-	<doNotGenerate>
-	^ cogit needsFrame
 ]
 
 { #category : 'abstract stack' }
@@ -674,7 +667,7 @@ CogitAbstractStack >> ssFlushTo: index [
 	simSpillBase <= index ifTrue: [
 		(((simSpillBase max: cogit getMethodOrBlockNumTemps + 1) min:
 			  simStackPtr) min: index) to: index do: [ :i |
-			self assert: self needsFrame.
+			self assert: cogit needsFrame.
 			self ssSpillEntryAt: i ].
 		simSpillBase := index + 1 ]
 ]
@@ -746,7 +739,7 @@ CogitAbstractStack >> ssPop: popBoolean andCopyReg: reg [
 CogitAbstractStack >> ssPop: n popSpilled: popSpilled [
 	| spilledToPop |
 	self assert: (simStackPtr - n >= cogit getMethodOrBlockNumTemps
-				or: [(self needsFrame not and: [simStackPtr - n >= 0])]).
+				or: [(cogit needsFrame not and: [simStackPtr - n >= 0])]).
 
 	"Pop from the simulated stack"
 	simStackPtr := simStackPtr - n.
@@ -886,7 +879,7 @@ CogitAbstractStack >> ssSize [
 CogitAbstractStack >> ssSpillEntryAt: i [
 
 	<inline: true>
-	self assert: self needsFrame.
+	self assert: cogit needsFrame.
 	"frameOffsetOfTemporary: is 0-relative"
 	(self simStackAt: i)
 		ensureSpilledAt: (self cogit frameOffsetOfTemporary: i - 1)
