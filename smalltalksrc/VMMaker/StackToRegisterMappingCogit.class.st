@@ -156,8 +156,8 @@ Class {
 StackToRegisterMappingCogit class >> ancilliaryClasses [
 
 	^ super ancilliaryClasses , {
-		  CogitAbstractStack.
 		  CogitAbstractStack basicNew simStackEntryClass.
+		  CogitAbstractStack.
 		  self basicNew bytecodeFixupClass }
 ]
 
