@@ -679,6 +679,15 @@ StackToRegisterMappingCogit >> ceStoreCheckTrampoline [
 ]
 
 { #category : 'compile abstract instructions' }
+StackToRegisterMappingCogit >> cleanup [
+
+	super cleanup.
+	currentAbstractStack ifNotNil: [
+		self cCode: [ self free: currentAbstractStack ].
+		currentAbstractStack := nil ]
+]
+
+{ #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileAbstractInstructionsFrom: start through: end [
 	"Loop over bytecodes, dispatching to the generator for each bytecode, handling fixups in due course."
 	| nextOpcodeIndex descriptor nExts fixup result |
@@ -3055,10 +3064,15 @@ StackToRegisterMappingCogit >> initSimStackForFramelessMethod: startpc [
 { #category : 'abstract stack' }
 StackToRegisterMappingCogit >> initSimStackPointer: wat [
 
-	self simulationOnly: [currentAbstractStack := CogitAbstractStack basicNew
-	                        cogit: self;
-	                        initialize;
-	                        yourself]
+	self
+		cCode: [
+			currentAbstractStack := self malloc:
+				                        (self sizeof: CogitAbstractStack) ]
+		inSmalltalk: [
+			currentAbstractStack := CogitAbstractStack basicNew
+				                        cogit: self;
+				                        initialize;
+				                        yourself ]
 ]
 
 { #category : 'abstract stack' }

@@ -4355,6 +4355,12 @@ Cogit >> cleanUpFailingCogCodeConstituents: cogMethodArg [
 	^nil
 ]
 
+{ #category : 'compile abstract instructions' }
+Cogit >> cleanup [
+
+	"Nothing, hook for subclasses"
+]
+
 { #category : 'garbage collection' }
 Cogit >> closedPICRefersToUnmarkedObject: cPIC [
 	"Answer if the ClosedPIC refers to any unmarked objects or freed/freeable target methods,
@@ -5281,7 +5287,11 @@ Cogit >> compileEntireFullBlockMethod: numCopied [
 	"Frame build"
 	self compileFullBlockMethodFrameBuild: numCopied.
 	"Method body"
-	(result := self compileMethodBody) < 0 ifTrue:
+	(result := self compileMethodBody).
+	
+	self cleanup.
+	
+	result < 0 ifTrue:
 		[^result].
 	^0
 ]
@@ -5296,7 +5306,9 @@ Cogit >> compileEntireMethod [
 	(result := self compilePrimitive) < 0 ifTrue:
 		[^result].
 	self compileFrameBuild.
-	^ self compileMethodBody
+	result := self compileMethodBody.
+	self cleanup.
+	^ result
 ]
 
 { #category : 'compile abstract instructions' }
