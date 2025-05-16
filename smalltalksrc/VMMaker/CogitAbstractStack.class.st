@@ -439,7 +439,7 @@ CogitAbstractStack >> simStack: aSimStack [
 
 { #category : 'simulation stack' }
 CogitAbstractStack >> simStackAt: index [
-	<cmacro: '(index) (simStack + (index))'>
+	<cmacro: '(theSimStack, index) (theSimStack->simStack + (index))'>
 	<returnTypeC: #'CogSimStackEntry *'>
 	^self addressOf: (simStack at: index)
 ]

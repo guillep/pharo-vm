@@ -1982,7 +1982,7 @@ StackToRegisterMappingCogit >> genPushNewArrayBytecode [
 
 	size := byte1 bitAnd: 127.
 	popValues ifFalse:
-		[(currentAbstractStack tryCollapseTempVectorInitializationOfSize: size) ifTrue:
+		[(self tryCollapseTempVectorInitializationOfSize: size) ifTrue:
 			[^0]].
 
 	objectRepresentation genNewArrayOfSize: size initialized: popValues not.
