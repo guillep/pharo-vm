@@ -18,7 +18,7 @@ VMAbstractStackRegisterAllocationTest >> setUp [
 
 	super setUp.
 	"Start with an empty stack, always has at least self in the fixed part"
-	
+
 	" | self        |  \
 	  | arg0        |   |
 	  | ...         |   |
@@ -30,10 +30,10 @@ VMAbstractStackRegisterAllocationTest >> setUp [
 	  | ...         |   - Variable part per frame. Push and pop act here.
 	  | stackEntryn |  /
 	"
-	
+
 	cogit methodOrBlockNumTemps: 0.
-	cogit initSimStackPointer: 0.
-	
+	cogit initSimStackPointer.
+
 	"Initialize the self stack entry as spilled relative to the frame pointer"
 	cogit getCurrentAbstractStack simSelf
 		type: SSBaseOffset;
@@ -41,11 +41,11 @@ VMAbstractStackRegisterAllocationTest >> setUp [
 		registerr: FPReg;
 		offset: FoxMFReceiver;
 		liveRegister: NoReg.
-	
+
 	"Spilling only works on frameful compilation"
 	cogit needsFrame: true.
-	
-	currentAbstractStack := cogit getCurrentAbstractStack.
+
+	currentAbstractStack := cogit getCurrentAbstractStack
 ]
 
 { #category : 'as yet unclassified' }

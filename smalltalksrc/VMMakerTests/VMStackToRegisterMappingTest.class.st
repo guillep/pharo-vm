@@ -11,7 +11,7 @@ VMStackToRegisterMappingTest >> setUp [
 
 	super setUp.
 	"Start with an empty stack, always has at least self in the fixed part"
-	
+
 	" | self        |  \
 	  | arg0        |   |
 	  | ...         |   |
@@ -23,10 +23,10 @@ VMStackToRegisterMappingTest >> setUp [
 	  | ...         |   - Variable part per frame. Push and pop act here.
 	  | stackEntryn |  /
 	"
-	
+
 	cogit methodOrBlockNumTemps: 0.
-	cogit initSimStackPointer: 0.
-	
+	cogit initSimStackPointer.
+
 	"Spilling only works on frameful compilation"
 	cogit needsFrame: true
 ]

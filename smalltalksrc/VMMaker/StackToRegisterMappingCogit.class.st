@@ -2943,9 +2943,9 @@ StackToRegisterMappingCogit >> getCurrentAbstractStack [
 
 { #category : 'abstract stack' }
 StackToRegisterMappingCogit >> initSimStackForFramefulMethod: startpc [
+
 	<var: #desc type: #'CogSimStackEntry *'>
-	
-	self initSimStackPointer: startpc.
+	self initSimStackPointer.
 	currentAbstractStack theSimStackPtr: methodOrBlockNumTemps. "N.B. Includes num args"
 	currentAbstractStack simSpillBase: methodOrBlockNumTemps + 1.
 	currentAbstractStack simSelf
@@ -2955,25 +2955,28 @@ StackToRegisterMappingCogit >> initSimStackForFramefulMethod: startpc [
 		offset: FoxMFReceiver;
 		liveRegister: NoReg.
 	"args"
-	1 to: methodOrBlockNumArgs do:
-		[:i| | desc |
+	1 to: methodOrBlockNumArgs do: [ :i |
+		| desc |
 		desc := currentAbstractStack simStackAt: i.
 		desc
 			type: SSBaseOffset;
 			spilled: true;
 			registerr: FPReg;
-			offset: FoxCallerSavedIP + ((methodOrBlockNumArgs - i + 1) * objectMemory wordSize);
-			bcptr: startpc].
+			offset: FoxCallerSavedIP
+				+ (methodOrBlockNumArgs - i + 1 * objectMemory wordSize);
+			bcptr: startpc ].
 	"temps"
-	methodOrBlockNumArgs + 1 to: currentAbstractStack theSimStackPtr do:
-		[:i| | desc |
+	methodOrBlockNumArgs + 1 to: currentAbstractStack theSimStackPtr do: [
+		:i |
+		| desc |
 		desc := currentAbstractStack simStackAt: i.
 		desc
 			type: SSBaseOffset;
 			spilled: true;
 			registerr: FPReg;
-			offset: FoxMFReceiver - (i - methodOrBlockNumArgs * objectMemory wordSize);
-			bcptr: startpc]
+			offset:
+				FoxMFReceiver - (i - methodOrBlockNumArgs * objectMemory wordSize);
+			bcptr: startpc ]
 ]
 
 { #category : 'abstract stack' }
@@ -2983,8 +2986,7 @@ StackToRegisterMappingCogit >> initSimStackForFramelessBlock: startpc [
 	 the method receiver (self) is put in the ReceiverResultReg by the block entry."
 
 	<var: #desc type: #'CogSimStackEntry *'>
-
-	self initSimStackPointer: startpc.
+	self initSimStackPointer.
 	currentAbstractStack simSelf
 		type: SSRegister;
 		spilled: false;
@@ -3009,10 +3011,10 @@ StackToRegisterMappingCogit >> initSimStackForFramelessBlock: startpc [
 
 { #category : 'abstract stack' }
 StackToRegisterMappingCogit >> initSimStackForFramelessMethod: startpc [
-	| desc |
-	<var: #desc type: #'CogSimStackEntry *'>
 
-	self initSimStackPointer: startpc.
+	<var: #desc type: #'CogSimStackEntry *'>
+	| desc |
+	self initSimStackPointer.
 	currentAbstractStack simSelf
 		type: SSRegister;
 		spilled: false;
@@ -3021,38 +3023,38 @@ StackToRegisterMappingCogit >> initSimStackForFramelessMethod: startpc [
 	self assert: methodOrBlockNumTemps = methodOrBlockNumArgs.
 	self assert: self numRegArgs <= 2.
 	(methodOrBlockNumArgs between: 1 and: self numRegArgs)
-		ifTrue:
-			[desc := currentAbstractStack simStackAt: 1.
-			 desc
+		ifTrue: [
+			desc := currentAbstractStack simStackAt: 1.
+			desc
 				type: SSRegister;
 				spilled: false;
 				registerr: Arg0Reg;
 				bcptr: startpc.
-			 methodOrBlockNumArgs > 1 ifTrue:
-				[desc := currentAbstractStack simStackAt: 2.
-				 desc
+			methodOrBlockNumArgs > 1 ifTrue: [
+				desc := currentAbstractStack simStackAt: 2.
+				desc
 					type: SSRegister;
 					spilled: false;
 					registerr: Arg1Reg;
-					bcptr: startpc]]
-		ifFalse:
-			[1 to: methodOrBlockNumArgs do:
-				[:i|
+					bcptr: startpc ] ]
+		ifFalse: [
+			1 to: methodOrBlockNumArgs do: [ :i |
 				desc := currentAbstractStack simStackAt: i.
 				desc
 					type: SSBaseOffset;
 					registerr: SPReg;
 					spilled: true;
-					offset: ((backEnd hasLinkRegister
-								ifTrue: [methodOrBlockNumArgs - i]
-								ifFalse: [methodOrBlockNumArgs + 1 - i]) * objectMemory wordSize);
-					bcptr: startpc]].
+					offset: (backEnd hasLinkRegister
+							 ifTrue: [ methodOrBlockNumArgs - i ]
+							 ifFalse: [ methodOrBlockNumArgs + 1 - i ])
+						* objectMemory wordSize;
+					bcptr: startpc ] ].
 	currentAbstractStack theSimStackPtr: methodOrBlockNumTemps. "N.B. Includes num args"
 	currentAbstractStack simSpillBase: methodOrBlockNumTemps + 1
 ]
 
 { #category : 'abstract stack' }
-StackToRegisterMappingCogit >> initSimStackPointer: wat [
+StackToRegisterMappingCogit >> initSimStackPointer [
 
 	self
 		cCode: [
@@ -3069,7 +3071,7 @@ StackToRegisterMappingCogit >> initSimStackPointer: wat [
 StackToRegisterMappingCogit >> initialize [
 
 	super initialize.
-	self initSimStackPointer: 0.
+	self initSimStackPointer
 ]
 
 { #category : 'compile abstract instructions' }
