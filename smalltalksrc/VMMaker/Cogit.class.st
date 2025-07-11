@@ -126,10 +126,7 @@ Class {
 		'simulatedTrampolines',
 		'simulatedVariableGetters',
 		'simulatedVariableSetters',
-		'printRegisters',
-		'printInstructions',
 		'compilationTrace',
-		'clickConfirm',
 		'singleStep',
 		'guardPageSize',
 		'traceFlags',
@@ -242,8 +239,6 @@ Class {
 		'cPICEndOfCodeLabel',
 		'ceMallocTrampoline',
 		'ceFreeTrampoline',
-		'debugBytecodePointers',
-		'debugOpcodeIndices',
 		'disassemblingMethod',
 		'cogConstituentIndex',
 		'directedSendUsesBinding',
@@ -8115,10 +8110,7 @@ Cogit >> handleCallOrJumpSimulationTrap: aProcessorSimulationTrap [
 	savedFramePointer := coInterpreter framePointer.
 	savedStackPointer := coInterpreter stackPointer.
 	savedArgumentCount := coInterpreter argumentCount.
-	result := ["self halt: evaluable selector."
-		   	   ((printRegisters or: [printInstructions]) and: [clickConfirm]) ifTrue:
-			 	[(self confirm: 'skip run-time call?') ifFalse:
-					[clickConfirm := false. self halt]].
+	result := [
 			   evaluable valueWithArguments: (processor
 												postCallArgumentsNumArgs: evaluable numArgs
 												in: nil)]
@@ -10273,19 +10265,6 @@ Cogit >> printCogMethodHeaderFor: address [
 ]
 
 { #category : 'disassembly' }
-Cogit >> printInstructions [
-	<doNotGenerate>
-	^printInstructions
-]
-
-{ #category : 'disassembly' }
-Cogit >> printInstructions: aBoolean [
-	<doNotGenerate>
-	printInstructions := aBoolean.
-	singleStep := singleStep or: [aBoolean]
-]
-
-{ #category : 'disassembly' }
 Cogit >> printMethodHeader: cogMethod on: aStream [
 
 	<doNotGenerate>
@@ -10530,18 +10509,6 @@ Cogit >> printRegisterMapOn: aStream [
 			aStream nextPutAll: abstractName; nextPutAll: ' => '; nextPutAll: regName]
 		separatedBy: [(n := n + 1) \\ 4 = 0 ifTrue: [aStream cr] ifFalse: [aStream tab]].
 	aStream cr; flush
-]
-
-{ #category : 'debugging' }
-Cogit >> printRegisters [
-	<doNotGenerate>
-	^printRegisters
-]
-
-{ #category : 'debugging' }
-Cogit >> printRegisters: aBoolean [
-	<doNotGenerate>
-	printRegisters := aBoolean
 ]
 
 { #category : 'debugging' }
@@ -11228,7 +11195,7 @@ Cogit >> setInterpreter: aCoInterpreter [
 			              8 ]
 		              ifFalse: [ 0 ].
 	debugPrimCallStackOffset := 0.
-	singleStep := printRegisters := printInstructions := clickConfirm := false.
+	singleStep := false.
 	backEnd := CogCompilerClass for: self.
 	methodLabel := CogCompilerClass for: self.
 	(literalsManager := backEnd class literalsManagerClass new) cogit:
@@ -11258,13 +11225,7 @@ Cogit >> setInterpreter: aCoInterpreter [
 	compilationTrace ifNil: [
 		compilationTrace := self class initializationOptions
 			                    at: #compilationTrace
-			                    ifAbsent: [ 0 ] ].
-	debugOpcodeIndices := self class initializationOptions
-		                      at: #debugOpcodeIndices
-		                      ifAbsent: [ Set new ].
-	debugBytecodePointers := self class initializationOptions
-		                         at: #debugBytecodePointers
-		                         ifAbsent: [ Set new ]
+			                    ifAbsent: [ 0 ] ]
 ]
 
 { #category : 'jit - api' }
@@ -11376,8 +11337,6 @@ Cogit >> simulateEnilopmart: enilopmartAddress numArgs: n [
 	self assert: (coInterpreter isOnRumpCStack: processor sp).
 	self assert: ((coInterpreter stackValue: n) between: guardPageSize and: methodZone freeStart - 1).
 	"As a convenience for stack printing, nil localFP so we know we're in machine code."
-	(printInstructions or: [printRegisters]) ifTrue:
-		[coInterpreter printExternalHeadFrame].
 	processor
 		smashRegistersWithValuesFrom: 16r80000000 by: objectMemory wordSize;
 		simulateLeafCallOf: enilopmartAddress

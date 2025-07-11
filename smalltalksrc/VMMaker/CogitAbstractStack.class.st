@@ -198,17 +198,15 @@ CogitAbstractStack >> anyReferencesToRegister: reg inTopNItems: n [
 
 { #category : 'compile abstract instructions' }
 CogitAbstractStack >> assertCorrectSimStackPtr [
-	<inline: true>
 	"Would like to assert simply simSpillBase > methodOrBlockNumTemps but can't because
 	 of the initialNils hack for nested blocks in SqueakV3PlusClosures"
-	self assert: (simSpillBase >= cogit getMethodOrBlockNumTemps).
-	(cogit needsFrame and: [simSpillBase > 0]) ifTrue:
-		[self assert: (self simStackAt: simSpillBase - 1) spilled == true.
-		 self assert: (simSpillBase > simStackPtr or: [(self simStackAt: simSpillBase) spilled == false])].
- 	self cCode: '' inSmalltalk:
-		[cogit deadCode ifFalse:
-			[self assert: simStackPtr + (cogit needsFrame ifTrue: [0] ifFalse: [1])
-						= (cogit debugStackPointerFor: self bytecodePC)]].
+
+	<inline: true>
+	self assert: simSpillBase >= cogit getMethodOrBlockNumTemps.
+	(cogit needsFrame and: [ simSpillBase > 0 ]) ifTrue: [
+		self assert: (self simStackAt: simSpillBase - 1) spilled == true.
+		self assert: (simSpillBase > simStackPtr or: [
+				 (self simStackAt: simSpillBase) spilled == false ]) ]
 ]
 
 { #category : 'simulation stack' }

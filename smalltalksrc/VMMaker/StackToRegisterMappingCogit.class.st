@@ -128,8 +128,6 @@ Class {
 		'ceCall0ArgsPIC',
 		'ceCall1ArgsPIC',
 		'ceCall2ArgsPIC',
-		'debugStackPointers',
-		'debugFixupBreaks',
 		'realCECallCogCodePopReceiverArg0Regs',
 		'realCECallCogCodePopReceiverArg1Arg0Regs',
 		'deadCode',
@@ -698,16 +696,12 @@ StackToRegisterMappingCogit >> compileAbstractInstructionsFrom: start through: e
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileCogFullBlockMethod: numCopied [
 	methodOrBlockNumTemps := coInterpreter tempCountOf: methodObj.
-	self cCode: '' inSmalltalk:
-		[debugStackPointers := coInterpreter debugStackPointersFor: methodObj].
 	^super compileCogFullBlockMethod: numCopied
 ]
 
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileCogMethod: selector [
 	methodOrBlockNumTemps := coInterpreter tempCountOf: methodObj.
-	self cCode: '' inSmalltalk:
-		[debugStackPointers := coInterpreter debugStackPointersFor: methodObj].
 	^super compileCogMethod: selector
 ]
 
@@ -816,12 +810,6 @@ StackToRegisterMappingCogit >> deadCode [
 	^ deadCode
 ]
 
-{ #category : 'simulation only' }
-StackToRegisterMappingCogit >> debugStackPointerFor: bcpc [
-	<doNotGenerate>
-	^(debugStackPointers at: bcpc) + (needsFrame ifTrue: [0] ifFalse: [1])
-]
-
 { #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> duplicateTopBytecode [
 	| desc |
@@ -840,49 +828,43 @@ StackToRegisterMappingCogit >> ensureFixupAt: targetPC [
 StackToRegisterMappingCogit >> ensureFixupAt: targetPC withStackPointer: aStackPointer [
 	"Make sure there's a flagged fixup at the target pc in fixups.
 	 Initially a fixup's target is just a flag.  Later on it is replaced with a proper instruction."
+
 	<returnTypeC: #'BytecodeFixup *'>
-	| fixup |
 	<var: #fixup type: #'BytecodeFixup *'>
-	fixup := self fixupAt:  targetPC.
-	self cCode: '' inSmalltalk:
-		[self assert: aStackPointer = (self debugStackPointerFor: targetPC).
-		 (fixup isMergeFixupOrIsFixedUp
-		  and: [fixup isBackwardBranchFixup not]) ifTrue: "ignore backward branch targets"
-			[self assert: fixup simStackPtr = aStackPointer]].
-	
+	| fixup |
+	fixup := self fixupAt: targetPC.
+	self cCode: '' inSmalltalk: [
+		(fixup isMergeFixupOrIsFixedUp and: [
+			 fixup isBackwardBranchFixup not ]) ifTrue: [ "ignore backward branch targets"
+			self assert: fixup simStackPtr = aStackPointer ] ].
+
 
 	fixup isNonMergeFixupOrNotAFixup
-		ifTrue: "convert a non-merge into a merge"
-			[fixup becomeMergeFixup.
-			 fixup simStackPtr: aStackPointer ]
-		ifFalse:
-			[fixup isBackwardBranchFixup
-				ifTrue: "this is the target of a backward branch and
+		ifTrue: [ "convert a non-merge into a merge"
+			fixup becomeMergeFixup.
+			fixup simStackPtr: aStackPointer ]
+		ifFalse: [
+			fixup isBackwardBranchFixup
+				ifTrue: [ "this is the target of a backward branch and
 						 so doesn't have a simStackPtr assigned yet."
-					[fixup simStackPtr: aStackPointer ]
-				ifFalse:
-					[self assert: fixup simStackPtr = aStackPointer ]].
+					fixup simStackPtr: aStackPointer ]
+				ifFalse: [ self assert: fixup simStackPtr = aStackPointer ] ].
 	fixup recordBcpc: bytecodePC.
-	^fixup
+	^ fixup
 ]
 
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> ensureNonMergeFixupAt: targetPC [
 	"Make sure there's a flagged fixup at the target pc in fixups.
 	 Initially a fixup's target is just a flag.  Later on it is replaced with a proper instruction."
+
 	<returnTypeC: #'BytecodeFixup *'>
-	| fixup |
 	<var: #fixup type: #'BytecodeFixup *'>
-	fixup := self fixupAt:  targetPC.
-	fixup notAFixup ifTrue:
-		[fixup becomeNonMergeFixup].
-	self cCode: '' inSmalltalk:
-		[fixup isMergeFixupOrIsFixedUp ifTrue:
-			[self assert:
-					(fixup isBackwardBranchFixup
-					 or: [fixup simStackPtr = (self debugStackPointerFor: targetPC)])]].
+	| fixup |
+	fixup := self fixupAt: targetPC.
+	fixup notAFixup ifTrue: [ fixup becomeNonMergeFixup ].
 	fixup recordBcpc: bytecodePC.
-	^fixup
+	^ fixup
 ]
 
 { #category : 'bytecode generator support' }
@@ -1489,7 +1471,7 @@ StackToRegisterMappingCogit >> genInlinedIdenticalOrNotIf: orNot [
 
 { #category : 'bytecode generator support' }
 StackToRegisterMappingCogit >> genJumpBackTo: targetBytecodePC [
-	currentAbstractStack  ssSpillStack.
+	currentAbstractStack ssSpillStack.
 	deadCode := true. "can't fall through"
 	^super genJumpBackTo: targetBytecodePC
 ]
@@ -3370,40 +3352,36 @@ StackToRegisterMappingCogit >> mergeWithFixupIfRequired: fixup [
 			
 	In addition, if this is a backjump merge point, we patch the fixup to hold the current simStackPtr 
 	for later assertions."
-	<var: #fixup type: #'BytecodeFixup *'>
 
+	<var: #fixup type: #'BytecodeFixup *'>
 	currentAbstractStack assertCorrectSimStackPtr.
 
 	"case 1"
-	fixup notAFixup ifTrue:
-		[^0].
+	fixup notAFixup ifTrue: [ ^ 0 ].
 
 	"case 2"
-	fixup isNonMergeFixup ifTrue:
-		[deadCode := false. ^0].
+	fixup isNonMergeFixup ifTrue: [
+		deadCode := false.
+		^ 0 ].
 
 	"cases 3 and 4"
 	self assert: fixup isMergeFixup.
 	deadCode
-		ifTrue: "case 3"
-			["Would like to assert fixup simStackPtr >= methodOrBlockNumTemps
-			   but can't because of the initialNils hack."
-			 self assert: (fixup simStackPtr >= methodOrBlockNumTemps).
-			 currentAbstractStack theSimStackPtr: fixup simStackPtr ]
-		ifFalse: "case 4"
-			[currentAbstractStack ssSpillStack].
+		ifTrue: [ "Would like to assert fixup simStackPtr >= methodOrBlockNumTemps
+			   but can't because of the initialNils hack.""case 3"
+			self assert: fixup simStackPtr >= methodOrBlockNumTemps.
+			currentAbstractStack theSimStackPtr: fixup simStackPtr ]
+		ifFalse: [ "case 4" currentAbstractStack ssSpillStack ].
 
 	"cases 3 and 4"
 	deadCode := false.
-	fixup isBackwardBranchFixup ifTrue:
-		[fixup simStackPtr: currentAbstractStack theSimStackPtr ].
+	fixup isBackwardBranchFixup ifTrue: [
+		fixup simStackPtr: currentAbstractStack theSimStackPtr ].
 	fixup targetInstruction: self Label.
 	self assert: currentAbstractStack theSimStackPtr = fixup simStackPtr.
-	self cCode: '' inSmalltalk:
-		[self assert: fixup simStackPtr = (self debugStackPointerFor: bytecodePC)].
 	currentAbstractStack restoreSimStackAtMergePoint: fixup.
 
-	^0
+	^ 0
 ]
 
 { #category : 'trampolines' }
@@ -3847,8 +3825,6 @@ StackToRegisterMappingCogit >> setInterpreter: aCoInterpreter [
 	methodAbortTrampolines := CArrayAccessor on: (Array new: self numRegArgs + 2).
 	picAbortTrampolines := CArrayAccessor on: (Array new: self numRegArgs + 2).
 	picMissTrampolines := CArrayAccessor on: (Array new: self numRegArgs + 2).
-
-	debugFixupBreaks := self class initializationOptions at: #debugFixupBreaks ifAbsent: [Set new].
 
 	numPushNilsFunction := self class numPushNilsFunction.
 	pushNilSizeFunction := self class pushNilSizeFunction
