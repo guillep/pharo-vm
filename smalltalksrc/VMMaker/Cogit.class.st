@@ -5090,25 +5090,28 @@ Cogit >> compileAbort [
 { #category : 'compile abstract instructions' }
 Cogit >> compileAbstractInstructionsFrom: start through: end [
 	"Loop over bytecodes, dispatching to the generator for each bytecode, handling fixups in due course."
-	| nextOpcodeIndex descriptor fixup result nExts |
+
 	<var: #descriptor type: #'BytecodeDescriptor *'>
 	<var: #fixup type: #'BytecodeFixup *'>
+	| nextOpcodeIndex descriptor fixup result nExts |
 	bytecodePC := start.
 	nExts := result := 0.
 	descriptor := nil.
-	[descriptor := self loadBytesAndGetDescriptor.
-	 nextOpcodeIndex := opcodeIndex.
-	 result := self perform: descriptor generator.
-	 self assertExtsAreConsumed: descriptor.
-	 fixup := self fixupAt: bytecodePC.
-	 self patchFixupTargetIfNeeded: fixup nextOpcodeIndex: nextOpcodeIndex.
-	 self maybeDumpLiterals: descriptor.
-	 bytecodePC := self nextBytecodePCFor: descriptor exts: nExts.
-	 result = 0 and: [bytecodePC <= end]]
-		whileTrue:
-			[nExts := descriptor isExtension ifTrue: [nExts + 1] ifFalse: [0]].
+	[
+	self mergeWithFixupIfRequired: (fixup := self fixupAt: bytecodePC).
+	descriptor := self loadBytesAndGetDescriptor.
+	nextOpcodeIndex := opcodeIndex.
+	result := self generateIRForDescriptor: descriptor.
+	result = 0 ifTrue: [ self assertExtsAreConsumed: descriptor ].
+	self patchFixupTargetIfNeeded: fixup nextOpcodeIndex: nextOpcodeIndex.
+	self maybeDumpLiterals: descriptor.
+	bytecodePC := self nextBytecodePCFor: descriptor exts: nExts.
+	result = 0 and: [ bytecodePC <= end ] ] whileTrue: [
+		nExts := descriptor isExtension
+			         ifTrue: [ nExts + 1 ]
+			         ifFalse: [ 0 ] ].
 	self checkEnoughOpcodes.
-	^result
+	^ result
 ]
 
 { #category : 'in-line cacheing' }
@@ -7636,6 +7639,12 @@ Cogit >> generateEnilopmarts [
 	self recordGeneratedRunTime: 'cePrimReturnEnterCogCodeProfiling' address: cePrimReturnEnterCogCodeProfiling
 ]
 
+{ #category : 'compile abstract instructions' }
+Cogit >> generateIRForDescriptor: descriptor [
+
+	^ self perform: descriptor generator
+]
+
 { #category : 'generate machine code' }
 Cogit >> generateInstructionsAt: eventualAbsoluteAddress [
 	"Size pc-dependent instructions and assign eventual addresses to all instructions.
@@ -9769,6 +9778,12 @@ Cogit >> mcPCForBackwardBranch: bcpc startBcpc: startbcpc in: cogMethod [
 { #category : 'initialization' }
 Cogit >> mclassIsSmallInteger [
 	^objectMemory isIntegerObject: receiverTags
+]
+
+{ #category : 'compile abstract instructions' }
+Cogit >> mergeWithFixupIfRequired: fixup [
+
+	"Everthing is spilled in memory, no merge is necessary"
 ]
 
 { #category : 'garbage collection' }

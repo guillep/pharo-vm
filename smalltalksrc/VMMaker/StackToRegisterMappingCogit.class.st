@@ -690,27 +690,9 @@ StackToRegisterMappingCogit >> cleanup [
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileAbstractInstructionsFrom: start through: end [
 	"Loop over bytecodes, dispatching to the generator for each bytecode, handling fixups in due course."
-	| nextOpcodeIndex descriptor nExts fixup result |
-	<var: #descriptor type: #'BytecodeDescriptor *'>
-	<var: #fixup type: #'BytecodeFixup *'>
-	bytecodePC := start.
-	nExts := result := 0.
-	descriptor := nil.
+
 	deadCode := false.
-	[self mergeWithFixupIfRequired: (fixup := self fixupAt: bytecodePC).
-	 descriptor := self loadBytesAndGetDescriptor.
-	 nextOpcodeIndex := opcodeIndex.
-	 result := deadCode
-				ifTrue: [self mapDeadDescriptorIfNeeded: descriptor]
-				ifFalse: [self perform: descriptor generator].
-	 result = 0 ifTrue: [self assertExtsAreConsumed: descriptor].
-	 self patchFixupTargetIfNeeded: fixup nextOpcodeIndex: nextOpcodeIndex.
-	 self maybeDumpLiterals: descriptor.
-	 bytecodePC := self nextBytecodePCFor: descriptor exts: nExts.
-	 result = 0 and: [bytecodePC <= end]] whileTrue:
-		[nExts := descriptor isExtension ifTrue: [nExts + 1] ifFalse: [0]].
-	self checkEnoughOpcodes.
-	^result
+	^ super compileAbstractInstructionsFrom: start through: end
 ]
 
 { #category : 'compile abstract instructions' }
@@ -2779,6 +2761,14 @@ StackToRegisterMappingCogit >> generateEnilopmarts [
 		 self numRegArgs >= 2 ifTrue:
 			[ceCall2ArgsPIC := self genCallPICEnilopmartNumArgs: 2.
 			 self assert: self numRegArgs = 2]]
+]
+
+{ #category : 'compile abstract instructions' }
+StackToRegisterMappingCogit >> generateIRForDescriptor: descriptor [
+
+	^ deadCode
+		  ifTrue: [ self mapDeadDescriptorIfNeeded: descriptor ]
+		  ifFalse: [ self perform: descriptor generator ]
 ]
 
 { #category : 'generate machine code' }
