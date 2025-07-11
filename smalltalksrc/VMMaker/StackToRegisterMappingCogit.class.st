@@ -805,7 +805,7 @@ StackToRegisterMappingCogit >> compileTwoPathFramelessInit [
 	jumpOld jmpTarget: self Label
 ]
 
-{ #category : 'copying' }
+{ #category : 'abstract stack' }
 StackToRegisterMappingCogit >> copyAbstractStack [
 	
 	currentAbstractStack := currentAbstractStack copy
@@ -3067,7 +3067,7 @@ StackToRegisterMappingCogit >> initSimStackPointer [
 				                        yourself ]
 ]
 
-{ #category : 'abstract stack' }
+{ #category : 'initialization' }
 StackToRegisterMappingCogit >> initialize [
 
 	super initialize.
@@ -3878,7 +3878,7 @@ StackToRegisterMappingCogit >> sistaV1PushNilSize: aMethodObj numInitialNils: nu
 	^numInitialNils
 ]
 
-{ #category : 'register allocation' }
+{ #category : 'abstract stack' }
 StackToRegisterMappingCogit >> swapRegisterInLiveEntry: aCogSimStackEntry by: aRegisterID [
 	
 	"The entry aCogSimStackEntry uses a register that we need to free.
