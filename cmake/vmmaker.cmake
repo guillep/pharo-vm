@@ -38,6 +38,31 @@ else()
   endif()
 endif()
 
+# Obtain all the parameters prefixed as VMMaker_
+# Remove the prefix 
+# Usage:
+#   Forward XXX=17 to the options dictionary of slang VM generation
+#   cmake -S src -B build -DVMMaker_XXX=17
+function (getVMMakerParameters _resultVar)
+    getListOfVarsStartingWith("VMMaker_" matchedVars)
+    set (_pharoParameterArray "")
+    foreach (_var IN LISTS matchedVars)
+        # VMMaker_ has 8 characters
+        string(SUBSTRING ${_var} 8 -1 _name)
+        set (_pharoParameterArray ${_pharoParameterArray} "'${_name}'" "'${${_var}}'")
+    endforeach()
+	list(JOIN _pharoParameterArray " " _pharoParameterArray)
+    set (${_resultVar} "#( ${_pharoParameterArray} )" PARENT_SCOPE)
+endfunction()
+
+function (getListOfVarsStartingWith _prefix _resultVar)
+    get_cmake_property(_vars VARIABLES)
+    string (REGEX MATCHALL "(^|;)${_prefix}[A-Za-z0-9_]*" _matchedVars "${_vars}")
+    set (${_resultVar} ${_matchedVars} PARENT_SCOPE)
+endfunction()
+
+getVMMakerParameters(VM_Parameters)
+
 set(PLUGIN_GENERATED_FILES 
     ${PHARO_CURRENT_GENERATED}/plugins/src/FilePlugin/FilePlugin.c
     ${PHARO_CURRENT_GENERATED}/plugins/src/SurfacePlugin/SurfacePlugin.c
@@ -152,10 +177,10 @@ if(GENERATE_SOURCES)
     #Custom command that generates the vm source code from VMMaker into the generated folder
     add_custom_command(
         OUTPUT ${VMSOURCEFILES} ${PLUGIN_GENERATED_FILES}
-        COMMAND ${VMMAKER_VM} --headless ${VMMAKER_IMAGE_TO_USE} --no-default-preferences perform PharoVMMaker generate:outputDirectory: ${FLAVOUR} ${CMAKE_CURRENT_BINARY_DIR_OUT}
+        COMMAND ${VMMAKER_VM} --headless ${VMMAKER_IMAGE_TO_USE} --no-default-preferences perform PharoVMMaker generate:outputDirectory:options: "${FLAVOUR}" "${CMAKE_CURRENT_BINARY_DIR_OUT}"  "${VM_Parameters}"
         VERBATIM
         DEPENDS vmmaker ${VMMAKER_IMAGE} ${VMMAKER_VM}
-        COMMENT "Generating VM files for flavour: ${FLAVOUR}")
+        COMMENT "Generating VM files for flavour: ${FLAVOUR} with options: ${VM_Parameters}")
 
     add_custom_target(generate-sources DEPENDS ${VMSOURCEFILES} ${PLUGIN_GENERATED_FILES})
 
