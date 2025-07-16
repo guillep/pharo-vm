@@ -7637,6 +7637,7 @@ Cogit >> generateEnilopmarts [
 { #category : 'compile abstract instructions' }
 Cogit >> generateIRForDescriptor: descriptor [
 
+	<var: #descriptor type: #'BytecodeDescriptor *'>
 	^ self perform: descriptor generator
 ]
 

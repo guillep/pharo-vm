@@ -2798,6 +2798,7 @@ StackToRegisterMappingCogit >> generateEnilopmarts [
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> generateIRForDescriptor: descriptor [
 
+	<var: #descriptor type: #'BytecodeDescriptor *'>
 	^ deadCode
 		  ifTrue: [ self mapDeadDescriptorIfNeeded: descriptor ]
 		  ifFalse: [ self perform: descriptor generator ]
