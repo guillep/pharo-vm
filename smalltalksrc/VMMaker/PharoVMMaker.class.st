@@ -62,19 +62,11 @@ PharoVMMaker class >> generate: anInterpreterClass [
 ]
 
 { #category : 'generation' }
-PharoVMMaker class >> generate: anInterpreterClass outputDirectory: aDirectory [
-
-	Transcript
-		nextPutAll: 'Generating ';
-		nextPutAll: anInterpreterClass printString;
-		nextPutAll: ' in ';
-		nextPutAll: aDirectory printString;
-		nextPutAll: '...';
-		newLine;
-		flush.
+PharoVMMaker class >> generate: anInterpreterClass outputDirectory: aDirectory options: options [
 
 	self new
 		outputDirectory: aDirectory;
+		options: options;
 		perform: #generate , anInterpreterClass asSymbol
 ]
 
