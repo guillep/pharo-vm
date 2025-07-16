@@ -1247,6 +1247,22 @@ StackToRegisterMappingCogit >> genForwardersInlinedIdenticalOrNotIf: orNot [
 	<var: #branchDescriptor type: #'BytecodeDescriptor *'>
 	<var: #label type: #'AbstractInstruction *'>
 	| nextPC branchDescriptor unforwardRcvr argReg targetBytecodePC unforwardArg rcvrReg postBranchPC label fixup rcvrIsConstant argIsConstant receiverConstant argumentConstant |
+	"If an operand is an annotable constant, it may be forwarded, so we need to store it into a 
+	register so the forwarder check can jump back to the comparison after unforwarding the constant.
+	However, if one of the operand is an unnanotable constant, does not allocate a register for it 
+	(machine code will use operations on constants) and does not generate forwarder checks."
+			unforwardRcvr := (objectRepresentation isUnannotatableConstant:
+				                  (currentAbstractStack ssValue: 1)) not.
+			unforwardArg := (objectRepresentation isUnannotatableConstant:
+				                 currentAbstractStack ssTop) not.
+	
+	currentAbstractStack
+				allocateEqualsEqualsRegistersArgNeedsReg: unforwardArg
+				rcvrNeedsReg: unforwardRcvr
+				into: [ :rcvr :arg |
+					rcvrReg := rcvr.
+					argReg := arg ].
+	
 	self
 		cppIf: PEEPHOLE_BRANCH_THREADING
 		ifTrue: [
@@ -1255,22 +1271,6 @@ StackToRegisterMappingCogit >> genForwardersInlinedIdenticalOrNotIf: orNot [
 				nextPC := next.
 				postBranchPC := postBranch.
 				targetBytecodePC := target ].
-
-			"If an operand is an annotable constant, it may be forwarded, so we need to store it into a 
-	register so the forwarder check can jump back to the comparison after unforwarding the constant.
-	However, if one of the operand is an unnanotable constant, does not allocate a register for it 
-	(machine code will use operations on constants) and does not generate forwarder checks."
-			unforwardRcvr := (objectRepresentation isUnannotatableConstant:
-				                  (currentAbstractStack ssValue: 1)) not.
-			unforwardArg := (objectRepresentation isUnannotatableConstant:
-				                 currentAbstractStack ssTop) not.
-
-			currentAbstractStack
-				allocateEqualsEqualsRegistersArgNeedsReg: unforwardArg
-				rcvrNeedsReg: unforwardRcvr
-				into: [ :rcvr :arg |
-					rcvrReg := rcvr.
-					argReg := arg ].
 
 			"If not followed by a branch, resolve to true or false."
 			(branchDescriptor isBranchTrue or: [
