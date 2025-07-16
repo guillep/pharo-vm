@@ -135,6 +135,9 @@ Class {
 		'counterIndex',
 		'currentAbstractStack'
 	],
+	#classVars : [
+		'PEEPHOLE_BRANCH_THREADING'
+	],
 	#pools : [
 		'CogCompilationConstants',
 		'VMMethodCacheConstants',
@@ -248,6 +251,13 @@ StackToRegisterMappingCogit class >> declareCVarsIn: aCodeGen [
 				declareC: 'sqInt (* const numPushNilsFunction)(struct _BytecodeDescriptor *,sqInt,sqInt,sqInt) = ', (aCodeGen cFunctionNameFor: self numPushNilsFunction);
 			var: 'pushNilSizeFunction'
 				declareC: 'sqInt (* const pushNilSizeFunction)(sqInt,sqInt) = ', (aCodeGen cFunctionNameFor: self pushNilSizeFunction)].
+]
+
+{ #category : 'translation' }
+StackToRegisterMappingCogit class >> defineAtCompileTime: anObject [
+
+	anObject == #PEEPHOLE_BRANCH_THREADING ifTrue: [ ^ true ].
+	^ super defineAtCompileTime: anObject
 ]
 
 { #category : 'class initialization' }
@@ -402,6 +412,9 @@ StackToRegisterMappingCogit class >> initializeSimStackConstants [
 StackToRegisterMappingCogit class >> initializeWithOptions: optionsDictionary [
 
 	super initializeWithOptions: optionsDictionary.
+	PEEPHOLE_BRANCH_THREADING := optionsDictionary
+										at: #PEEPHOLE_BRANCH_THREADING
+										ifAbsent: [true].
 	self initializeSimStackConstants
 ]
 
@@ -1232,7 +1245,7 @@ StackToRegisterMappingCogit >> genForwardersInlinedIdenticalOrNotIf: orNot [
 	<var: #label type: #'AbstractInstruction *'>
 	| nextPC branchDescriptor unforwardRcvr argReg targetBytecodePC unforwardArg rcvrReg postBranchPC label fixup rcvrIsConstant argIsConstant receiverConstant argumentConstant |
 	self
-		cppIf: #PEEPHOLE_BRANCH_THREADING
+		cppIf: PEEPHOLE_BRANCH_THREADING
 		ifTrue: [
 			self extractMaybeBranchDescriptorInto: [ :descr :next :postBranch :target |
 				branchDescriptor := descr.
@@ -1509,7 +1522,7 @@ StackToRegisterMappingCogit >> genJumpIf: boolean to: targetBytecodePC [
 	currentAbstractStack ssSpillStackExceptTop: 1.
 	desc := currentAbstractStack ssTop.
 
-	self cppIf: #PEEPHOLE_BRANCH_THREADING ifTrue: [
+	self cppIf: PEEPHOLE_BRANCH_THREADING ifTrue: [
 		(currentAbstractStack stackEntryIsBoolean: desc) ifTrue: [ "Must arrange there's a fixup at the target whether it is jumped to or
 		not so that the simStackPtr can be kept correct."
 			currentAbstractStack ssPop: 1.
@@ -1557,7 +1570,7 @@ StackToRegisterMappingCogit >> genJumpTo: targetBytecodePC [
 	eventualTarget := self eventualTargetOf: targetBytecodePC.
 
 	self
-		cppIf: #PEEPHOLE_BRANCH_THREADING
+		cppIf: PEEPHOLE_BRANCH_THREADING
 		ifTrue: [
 			(eventualTarget > bytecodePC and: [
 				 currentAbstractStack stackTopIsBoolean and: [
@@ -2356,7 +2369,7 @@ StackToRegisterMappingCogit >> genSpecialSelectorComparison [
 		targetPC := target ].
 
 	self
-		cppIf: #PEEPHOLE_BRANCH_THREADING
+		cppIf: PEEPHOLE_BRANCH_THREADING
 		ifTrue: [ "Only interested in inlining if followed by a conditional branch."
 			inlineCAB := branchDescriptor isBranchTrue or: [
 				             branchDescriptor isBranchFalse ].
