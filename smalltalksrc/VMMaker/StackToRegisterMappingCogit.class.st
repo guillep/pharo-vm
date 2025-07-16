@@ -412,8 +412,11 @@ StackToRegisterMappingCogit class >> initializeSimStackConstants [
 StackToRegisterMappingCogit class >> initializeWithOptions: optionsDictionary [
 
 	super initializeWithOptions: optionsDictionary.
+	
+	"Consider 0 as false, other as true"
 	PEEPHOLE_BRANCH_THREADING := optionsDictionary
 										at: #PEEPHOLE_BRANCH_THREADING
+										ifPresent: [ :v | v asInteger ~= 0 ]
 										ifAbsent: [true].
 	self initializeSimStackConstants
 ]
