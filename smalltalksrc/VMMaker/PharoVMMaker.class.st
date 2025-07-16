@@ -64,9 +64,15 @@ PharoVMMaker class >> generate: anInterpreterClass [
 { #category : 'generation' }
 PharoVMMaker class >> generate: anInterpreterClass outputDirectory: aDirectory options: options [
 
+	"Expected:
+		- anInterpreterClass: String representing a class name, subclass of VMClass
+		- aDirectory: String representing a path
+		- options: string representing a serialized literal array of key-value pairs"
+		
+	"Deserialize the array of options into an array before passing it"
 	self new
 		outputDirectory: aDirectory;
-		options: options;
+		options: (Array readFrom: options);
 		perform: #generate , anInterpreterClass asSymbol
 ]
 
