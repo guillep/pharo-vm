@@ -143,6 +143,18 @@ SlangClass >> cogitClass [
 ]
 
 { #category : 'translation support' }
+SlangClass >> cppIf: conditionBlockOrValue ifTrue: trueExpressionOrBlock [
+	"When translated, produces #if (condition) #else #endif CPP directives.
+	 Example usage:
+
+		self cppIf: IMMUTABILITY
+			ifTrue: [(self internalIsImmutable: obj) ifTrue:
+						[^self primitiveFailFor: PrimErrNoModification]]"
+	<doNotGenerate>
+	^self cppIf: conditionBlockOrValue ifTrue: trueExpressionOrBlock ifFalse: nil
+]
+
+{ #category : 'translation support' }
 SlangClass >> cppIf: conditionBlockOrSymbolValue ifTrue: trueExpressionOrBlock ifFalse: falseExpressionOrBlockOrNil [
 	"When translated, produces #if (condition) #else #endif CPP directives.
 	 Example usage:
