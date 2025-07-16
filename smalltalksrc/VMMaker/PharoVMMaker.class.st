@@ -59,6 +59,7 @@ PharoVMMaker class >> generate: anInterpreterClass [
 	self
 		generate: anInterpreterClass
 		outputDirectory: self defaultOutputDirectory
+		options: #()
 ]
 
 { #category : 'generation' }
