@@ -2601,19 +2601,30 @@ CogObjectRepresentationForSpur >> genStoreHeader: header intoNewInstance: rcvrRe
 
 { #category : 'compile abstract instructions' }
 CogObjectRepresentationForSpur >> genStoreSourceReg: sourceReg slotIndex: index destReg: destReg scratchReg: scratchReg inFrame: inFrame needsStoreCheck: needsStoreCheck [
-	
+
 	cogit genTraceStores.
-	"do the store"
-	cogit MoveR: sourceReg
-		   Mw: index * objectMemory wordSize + objectMemory baseHeaderSize
-		   r: destReg.
-	"now the check. needStoreCheck is false if the JIT has figured out that the value stored does not need the check (immediate, nil, true, false)"
-	needsStoreCheck ifTrue: 
-		[ ^ self 
-			genStoreCheckReceiverReg: destReg 
-			valueReg: sourceReg 
-			scratchReg: scratchReg 
-			inFrame: inFrame ].
+
+	cogit isDefaultDomain
+		ifTrue: [
+			"do the store"
+			cogit
+				MoveR: sourceReg
+				Mw: index * objectMemory wordSize + objectMemory baseHeaderSize
+				r: destReg.
+
+			"now the check. needStoreCheck is false if the JIT has figured out that the value stored does not need the check (immediate, nil, true, false)"
+			needsStoreCheck ifTrue: [
+				^ self
+					  genStoreCheckReceiverReg: destReg
+					  valueReg: sourceReg
+					  scratchReg: scratchReg
+					  inFrame: inFrame ] ]
+		ifFalse: [ 
+			"do reify and send to the domain"
+			"Let's send `17 error` for now!"
+			cogit PushCq: (objectMemory integerObjectOf: 17).
+			cogit genSend: -33 numArgs: 0.
+		].
 	^ 0
 ]
 

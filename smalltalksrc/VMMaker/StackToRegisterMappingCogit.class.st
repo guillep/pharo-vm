@@ -978,21 +978,50 @@ StackToRegisterMappingCogit >> compileCogMethod: selector [
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileEntireMethod [
 	"Compile the abstract instructions for the entire method, including blocks."
+
+	| result jumpNonDefault compilationResult |
 	regArgsHaveBeenPushed := false.
-	^super compileEntireMethod
+
+	self preenMethodLabel.
+	self compileAbort.
+	self compileEntry.
+
+	"Compile two paths always.
+	The first path executes normally on the default domain.
+	The second path is compiled into hooks calling to the domain."
+
+	self CmpCq: 0 R: TempReg.
+	jumpNonDefault := self JumpZero: 0.
+
+	"Default domain"
+	isDefaultDomain := true.
+	(result := self compilePrimitive) < 0 ifTrue: [ ^ result ].
+	needsFrame
+		ifTrue: [ 
+			self compileFrameBuild.
+			self initSimStackForFramelessMethod: initialPC ]
+		ifFalse: [ self initSimStackForFramefulMethod: initialPC ].
+	compilationResult := self compileMethodBody.
+	compilationResult ~= 0 ifTrue: [ ^ compilationResult ].
+	
+	"non default domain"
+	isDefaultDomain := false.
+	jumpNonDefault jmpTarget: self Label.
+	(result := self compilePrimitive) < 0 ifTrue: [ ^ result ].
+	self compileFrameBuild.
+	"Non default domain is always frameful,
+	because hooks are compiled as message sends to the domain"
+	self initSimStackForFramefulMethod: initialPC.
+	^ self compileMethodBody
 ]
 
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileFrameBuild [
-	"Build a frame for a CogMethod activation.  See CoInterpreter class>>initializeFrameIndices.
-	 Override to push the register receiver and register arguments, if any."
 
-	needsFrame ifFalse: [
-		self initSimStackForFramelessMethod: initialPC.
-		^ self ].
+	"On Stack to register mapping calling convention, receiver and up to two args pass by register and no by stack.
+	However, if we are creating a frame, we need to push them before creating the new frame."
 	self genPushRegisterArgs.
-	super compileFrameBuild.
-	self initSimStackForFramefulMethod: initialPC
+	super compileFrameBuild
 ]
 
 { #category : 'compile abstract instructions' }
@@ -3239,6 +3268,18 @@ StackToRegisterMappingCogit >> initializeFixupAt: targetPC [
 	self initializeFixup: fixup
 ]
 
+{ #category : 'accessing' }
+StackToRegisterMappingCogit >> isDefaultDomain [
+
+	^ isDefaultDomain
+]
+
+{ #category : 'accessing' }
+StackToRegisterMappingCogit >> isDefaultDomain: anObject [
+
+	isDefaultDomain := anObject
+]
+
 { #category : 'span functions' }
 StackToRegisterMappingCogit >> isPushNil: descriptor pc: pc nExts: nExts method: aMethodObj [
 	<inline: true>
@@ -4448,10 +4489,12 @@ StackToRegisterMappingCogit >> ssTopDescriptor [
 
 { #category : 'testing' }
 StackToRegisterMappingCogit >> ssTopNeedsStoreCheck [
+
 	<inline: true>
-	^self ssTop type ~= SSConstant
-	  or: [(objectMemory isNonImmediate: self ssTop constant)
-		and: [objectRepresentation shouldAnnotateObjectReference:  self ssTop constant]]
+	^ self ssTop type ~= SSConstant or: [
+		  (objectMemory isNonImmediate: self ssTop constant) and: [
+			  objectRepresentation shouldAnnotateObjectReference:
+				  self ssTop constant ] ]
 ]
 
 { #category : 'simulation stack' }
