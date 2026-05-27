@@ -137,7 +137,8 @@ Class {
 		'realCECallCogCodePopReceiverArg1Arg0Regs',
 		'deadCode',
 		'useTwoPaths',
-		'counterIndex'
+		'counterIndex',
+		'isDefaultDomain'
 	],
 	#pools : [
 		'CogCompilationConstants',
@@ -1022,91 +1023,10 @@ StackToRegisterMappingCogit >> compileFullBlockMethodFrameBuild: numCopied [
 	self initSimStackForFramefulMethod: initialPC
 ]
 
-{ #category : 'compile abstract instructions' }
-StackToRegisterMappingCogit >> compileTwoPathFrameBuild [
-	"We are in a method where the frame is needed *only* for instance variable store, typically a setter method.
-	This case has 20% overhead with Immutability compared to setter without immutability because of the stack
-	frame creation. We compile two path, one where the object is immutable, one where it isn't. At the beginning 
-	of the frame build, we take one path or the other depending on the receiver mutability.
-	
-	Note: this specific case happens only where there are only instance variabel stores. We could do something
-	similar for literal variable stores, but we don't as it's too uncommon."
-	| jumpOld |
-	self assert: useTwoPaths.
-	jumpOld := objectRepresentation genJumpInOldSpace: ReceiverResultReg.
-	"first path. The receiver is mutable"
-	self assert: needsFrame not.
-	self initSimStackForFramelessMethod: initialPC.
-	self compileMethodBody.
-
-	"second path. The receiver is immutable"
-	useTwoPaths := false. "reset because it impacts inst var store compilation"
-	needsFrame := true.
-	self genPushRegisterArgs.
-	super compileFrameBuild.
-	self initSimStackForFramefulMethod: initialPC
-]
-
-{ #category : 'compile abstract instructions' }
-StackToRegisterMappingCogit >> compileTwoPathFramelessInit [
-	"We are in a frameless method with at least two inst var stores. We compile two paths,
-	 one where the object is in new space, and one where it isn't. At the beginning 
-	 of the method, we take one path or the other depending on the receiver being in newSpace."
-	| jumpOld |
-	self deny: needsFrame.
-	self assert: useTwoPaths.
-	jumpOld := objectRepresentation genJumpInOldSpace: ReceiverResultReg.
-
-	"first path. The receiver is young"
-	self initSimStackForFramelessMethod: initialPC.
-	self compileMethodBody.
-
-	"second path. The receiver is old"
-	useTwoPaths := false. "reset because it impacts inst var store compilation"
-	jumpOld jmpTarget: self Label
-]
-
 { #category : 'simulation only' }
 StackToRegisterMappingCogit >> debugStackPointerFor: bcpc [
 	<doNotGenerate>
 	^(debugStackPointers at: bcpc) + (needsFrame ifTrue: [0] ifFalse: [1])
-]
-
-{ #category : 'bytecode generators' }
-StackToRegisterMappingCogit >> doubleExtendedDoAnythingBytecode [
-	"Replaces the Blue Book double-extended send [132], in which the first byte was wasted on 8 bits of argument count. 
-	Here we use 3 bits for the operation sub-type (opType),  and the remaining 5 bits for argument count where needed. 
-	The last byte give access to 256 instVars or literals. 
-	See also secondExtendedSendBytecode"
-	| opType |
-	opType := byte1 >> 5.
-	opType = 0 ifTrue:
-		[^self genSend: byte2 numArgs: (byte1 bitAnd: 31)].
-	opType = 1 ifTrue:
-		[^self genSendSuper: byte2 numArgs: (byte1 bitAnd: 31)].
-	"We need a map entry for this bytecode for correct parsing.
-	 The sends will get an IsSend entry anyway.  The other cases need a fake one."
-	opType caseOf: {
-			[2]	->	[(coInterpreter isReadMediatedContextInstVarIndex: byte2)
-						ifTrue: [self genPushMaybeContextReceiverVariable: byte2]
-						ifFalse: [self genPushReceiverVariable: byte2.
-								self annotateInstructionForBytecode.
-								^0]].
-			[3]	->	[self genPushLiteralIndex: byte2.
-					 self annotateInstructionForBytecode.
-					 ^0].
-			[4]	->	[self genPushLiteralVariable: byte2 ].
-			[7]	->	[self genStorePop: false LiteralVariable: byte2 ] }
-		otherwise: "5 & 6"
-			[(coInterpreter isWriteMediatedContextInstVarIndex: byte2)
-				ifTrue: [self genStorePop: opType = 6 MaybeContextReceiverVariable: byte2]
-				ifFalse: [self genStorePop: opType = 6 ReceiverVariable: byte2]].
-	"We need a map entry for this bytecode for correct parsing (if the method builds a frame)."
-	self assert: needsFrame.
-	"genPushMaybeContextInstVar, pushLitVar, store & storePop all generate code"
-	self assert: self prevInstIsPCAnnotated not.
-	self annotateBytecode: self Label.
-	^0
 ]
 
 { #category : 'bytecode generators' }
@@ -2445,50 +2365,6 @@ StackToRegisterMappingCogit >> genSendTrampolineFor: aRoutine numArgs: numArgs c
 		resultReg: NoReg
 		appendOpcodes: true.
 	^startAddress
-]
-
-{ #category : 'bytecode generators' }
-StackToRegisterMappingCogit >> genSistaExtStoreAndPopReceiverVariableBytecodePopBoolean: popBoolean [
-
-	<inline: true>
-	| index needsStoreCheck maybeContext result |
-	needsStoreCheck := self sistaNeedsStoreCheck.
-	"Long form and short form exist for popInto. Only the long form exists for store.
-	Store have an explicit flag to mark context accessing, while popInto context accessing are done through the long form,
-	hence generate the context form if the flag is set or if this is a popInto."
-	maybeContext := popBoolean or: [ self extBSpecifiesMaybeContext ].
-	extB := 0.
-	numExtB := 0.
-	index := byte1 + (extA << 8).
-	extA := 0.
-	result := ((coInterpreter isWriteMediatedContextInstVarIndex: index)
-		           and: [ maybeContext ])
-		          ifTrue: [
-			          self
-				          genStorePop: popBoolean
-				          MaybeContextReceiverVariable: index
-				          needsStoreCheck: needsStoreCheck ]
-		          ifFalse: [
-			          self
-				          genStorePop: popBoolean
-				          ReceiverVariable: index
-				          needsStoreCheck: needsStoreCheck ].
-
-	^ result
-]
-
-{ #category : 'bytecode generators' }
-StackToRegisterMappingCogit >> genSistaExtStoreLiteralVariableBytecodePopBoolean: boolean [
-
-	<inline: true>
-	| index needsStoreCheck |
-	needsStoreCheck := self sistaNeedsStoreCheck.
-	index := byte1 + (extA << 8).
-	extA := numExtB := extB := 0.
-	^ self
-		  genStorePop: boolean
-		  LiteralVariable: index
-		  needsStoreCheck: needsStoreCheck
 ]
 
 { #category : 'bytecode generators' }
