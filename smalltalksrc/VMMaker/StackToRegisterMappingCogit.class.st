@@ -1056,9 +1056,11 @@ StackToRegisterMappingCogit >> compileTwoPathFramelessInit [
 	self deny: needsFrame.
 	self assert: useTwoPaths.
 	jumpOld := objectRepresentation genJumpInOldSpace: ReceiverResultReg.
+
 	"first path. The receiver is young"
 	self initSimStackForFramelessMethod: initialPC.
 	self compileMethodBody.
+
 	"second path. The receiver is old"
 	useTwoPaths := false. "reset because it impacts inst var store compilation"
 	jumpOld jmpTarget: self Label
@@ -2892,7 +2894,7 @@ StackToRegisterMappingCogit >> genStorePop: popBoolean ReceiverVariable: slotInd
 		  genGenericStorePop: popBoolean
 		  slotIndex: slotIndex
 		  destReg: ReceiverResultReg
-		  needsStoreCheck: (useTwoPaths not and: [ needsStoreCheck ])
+		  needsStoreCheck: needsStoreCheck
 		  needsRestoreRcvr: true "ReceiverResultReg is kept live with the receiver across the operation"
 ]
 
@@ -4010,8 +4012,8 @@ StackToRegisterMappingCogit >> scanMethod [
 		- what are the targets of any backward branches"
 
 	<var: #descriptor type: #'BytecodeDescriptor *'>
-	| latestContinuation nExts descriptor pc distance targetPC framelessStackDelta seenInstVarStore |
-	needsFrame := useTwoPaths := seenInstVarStore := false.
+	| latestContinuation nExts descriptor pc distance targetPC framelessStackDelta |
+	needsFrame := false.
 	self maybeInitNumFixups.
 	self maybeInitNumCounters.
 	prevBCDescriptor := nil.
@@ -4037,19 +4039,9 @@ StackToRegisterMappingCogit >> scanMethod [
 					 perform: descriptor needsFrameFunction
 					 with: framelessStackDelta ])
 				ifTrue: [
-					descriptor is1ByteInstVarStore
-						ifTrue: [ useTwoPaths := true ]
-						ifFalse: [
-							needsFrame := true.
-							useTwoPaths := false ] ]
+				descriptor is1ByteInstVarStore ifFalse: [ needsFrame := true ] ]
 				ifFalse: [
-					framelessStackDelta := framelessStackDelta
-					                       + descriptor stackDelta.
-
-					descriptor is1ByteInstVarStore ifTrue: [
-						seenInstVarStore
-							ifTrue: [ useTwoPaths := true ]
-							ifFalse: [ seenInstVarStore := true ] ] ] ].
+				framelessStackDelta := framelessStackDelta + descriptor stackDelta ] ].
 
 		descriptor isBranch ifTrue: [
 			distance := self
@@ -4742,12 +4734,6 @@ StackToRegisterMappingCogit >> updateSimSpillBase [
 		[:i|
 		self assert: (self simStackAt: i) spilled == true].
 	self assert: (simSpillBase > simStackPtr or: [(self simStackAt: simSpillBase) spilled == false])
-]
-
-{ #category : 'accessing' }
-StackToRegisterMappingCogit >> useTwoPaths: aBoolean [ 
-	<doNotGenerate>
-	useTwoPaths := aBoolean
 ]
 
 { #category : 'span functions' }

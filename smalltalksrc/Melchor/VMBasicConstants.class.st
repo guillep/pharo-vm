@@ -32,7 +32,6 @@ Class {
 		'GCModeNewSpace',
 		'HashMultiplyConstant',
 		'HashMultiplyMask',
-		'IMMUTABILITY',
 		'PRIdSQINT',
 		'PrimErrBadArgument',
 		'PrimErrBadIndex',
