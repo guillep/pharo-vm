@@ -62,9 +62,6 @@ static sqInt (*byteSizeOf)(sqInt oop);
 static sqInt (*failed)(void);
 static void * (*firstIndexableField)(sqInt oop);
 static sqInt (*isBytes)(sqInt oop);
-#if IMMUTABILITY
-static sqInt (*isOopImmutable)(sqInt oop);
-#endif /* IMMUTABILITY */
 static sqInt (*methodArgumentCount)(void);
 static sqInt (*methodReturnInteger)(sqInt integer);
 static sqInt (*methodReturnReceiver)(void);
@@ -79,13 +76,6 @@ extern sqInt byteSizeOf(sqInt oop);
 extern sqInt failed(void);
 extern void * firstIndexableField(sqInt oop);
 extern sqInt isBytes(sqInt oop);
-#if IMMUTABILITY
-#if IMMUTABILITY
-extern sqInt isOopImmutable(sqInt oop);
-#endif /* IMMUTABILITY */
-#else
-# define isOopImmutable(oop) 0
-#endif
 extern sqInt methodArgumentCount(void);
 extern sqInt methodReturnInteger(sqInt integer);
 extern sqInt methodReturnReceiver(void);
@@ -203,9 +193,6 @@ primitiveCompressToByteArray(void)
 	}
 	if (!(isBytes(stackValue(0)))) {
 		return primitiveFailFor(PrimErrBadArgument);
-	}
-	if (isOopImmutable(stackValue(0))) {
-		return primitiveFailFor(PrimErrNoModification);
 	}
 	ba = firstIndexableField(stackValue(0));
 	size = sizeOfSTArrayFromCPrimitive(bm);
@@ -390,9 +377,6 @@ primitiveConvert8BitSigned(void)
 	if (failed()) {
 		return primitiveFailFor(PrimErrBadArgument);
 	}
-	if (isOopImmutable(soundBufferOop)) {
-		return primitiveFailFor(PrimErrNoModification);
-	}
 	arraySize = sizeOfSTArrayFromCPrimitive(aByteArray);
 	if ((byteSizeOf(soundBufferOop)) < (2 * arraySize)) {
 		return primitiveFailFor(PrimErrBadArgument);
@@ -429,9 +413,6 @@ primitiveDecompressFromByteArray(void)
     sqInt pastEnd;
 
 	bm = arrayValueOf(stackValue(2));
-	if (isOopImmutable(stackValue(2))) {
-		return primitiveFailFor(PrimErrNoModification);
-	}
 	if (!(isBytes(stackValue(1)))) {
 		return primitiveFailFor(PrimErrBadArgument);
 	}
@@ -703,9 +684,6 @@ primitiveTranslateStringWithTable(void)
 	if (!(isBytes(aStringOop))) {
 		return primitiveFailFor(PrimErrBadArgument);
 	}
-	if (isOopImmutable(aStringOop)) {
-		return primitiveFailFor(PrimErrNoModification);
-	}
 	start = stackIntegerValue(2);
 	if (failed()) {
 		return primitiveFailFor(PrimErrBadArgument);
@@ -754,13 +732,6 @@ setInterpreter(struct VirtualMachine *anInterpreter)
 		failed = interpreterProxy->failed;
 		firstIndexableField = interpreterProxy->firstIndexableField;
 		isBytes = interpreterProxy->isBytes;
-#if IMMUTABILITY
-		isOopImmutable = interpreterProxy->isOopImmutable;
-#else
-#if !defined(isOopImmutable)
-		isOopImmutable = 0;
-#endif
-#endif
 		methodArgumentCount = interpreterProxy->methodArgumentCount;
 		methodReturnInteger = interpreterProxy->methodReturnInteger;
 		methodReturnReceiver = interpreterProxy->methodReturnReceiver;

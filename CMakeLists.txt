@@ -301,7 +301,6 @@ add_compile_options(
 
 
 add_compile_definitions(
-    IMMUTABILITY=1
     COGMTVM=0
     DEBUGVM=${DEBUGVM}
     _FILE_OFFSET_BITS=64

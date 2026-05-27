@@ -79,8 +79,6 @@ sqInt instanceSizeOf(sqInt aClass);
 void tenuringIncrementalGC(void);
 #endif
 sqInt isArray(sqInt oop);
-sqInt isOopMutable(sqInt oop);
-sqInt isOopImmutable(sqInt oop);
 
 /* InterpreterProxy methodsFor: 'converting' */
 sqInt  booleanValueOf(sqInt obj);
@@ -228,12 +226,10 @@ static sqInt minorVersion(void) {
 	return VM_PROXY_MINOR;
 }
 
-#if !IMMUTABILITY
 static sqInt isNonIntegerObject(sqInt objectPointer)
 {
 	return !isIntegerObject(objectPointer);
 }
-#endif
 
 extern sqInt isYoung(sqInt);
 
@@ -420,8 +416,6 @@ struct VirtualMachine* sqGetInterpreterProxy(void)
 
 #if VM_PROXY_MINOR > 8
 	VM->primitiveFailFor    = primitiveFailFor;
-	VM->isOopImmutable = isOopImmutable;
-	VM->isOopMutable   = isOopMutable;
 #endif
 
 #if VM_PROXY_MINOR > 9
