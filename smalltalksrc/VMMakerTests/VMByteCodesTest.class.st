@@ -235,50 +235,6 @@ VMByteCodesTest >> testArraySumUsingVectorBytecode [
 	
 ]
 
-{ #category : 'tests-complex' }
-VMByteCodesTest >> testBytecodePopIntoReceiverWithReadOnlySendsAttemptToAssignMethod [
-
-	| class object objectToPutInSlot attemptToAssignMethod attemptToAssignSelector aMethodDictionary |
-	class := self
-		         newClassInOldSpaceWithSlots: 0
-		         instSpec: memory arrayFormat.
-	object := memory instantiateClass: class indexableSize: 1.
-	attemptToAssignSelector := memory integerObjectOf: 2.
-	attemptToAssignMethod := methodBuilder newMethod
-		                         numberOfArguments: 2;
-		                         buildMethod.
-	self setUpMethodDictionaryIn: class.
-	aMethodDictionary := memory
-		                     fetchPointer: MethodDictionaryIndex
-		                     ofObject: class.
-	self
-		installSelector: attemptToAssignSelector
-		method: attemptToAssignMethod
-		inMethodDictionary: aMethodDictionary.
-
-	memory splObj: SelectorAttemptToAssign put: attemptToAssignSelector.
-
-	memory setIsImmutableOf: object to: true.
-
-	objectToPutInSlot := memory instantiateClass: class indexableSize: 1.
-
-	stackBuilder addNewFrame
-		receiver: object;
-		stack: { objectToPutInSlot }.
-	stackBuilder buildStack.
-
-	interpreter methodDictLinearSearchLimit: 3.
-	interpreter setBreakSelector: nil.
-	interpreter currentBytecode: 200.
-
-	self interpret: [ interpreter storeAndPopReceiverVariableBytecode ].
-
-	topFrame := VMStackFrame
-		            newFramePointer: interpreter framePointer
-		            withInterpreter: interpreter.
-	self assert: topFrame method equals: attemptToAssignMethod
-]
-
 { #category : 'tests-simd' }
 VMByteCodesTest >> testCallMappedInlinedPrimitiveBytecode [
 

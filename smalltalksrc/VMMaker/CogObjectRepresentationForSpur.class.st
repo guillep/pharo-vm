@@ -25,27 +25,6 @@ Class {
 	#tag : 'JIT'
 }
 
-{ #category : 'translation' }
-CogObjectRepresentationForSpur class >> declareCVarsIn: aCodeGen [
-	"Deal wuth the fact that the number of trampolines depends on IMMUTABILITY
-	 and that IMMUTABILITY can be defined at compile time.  Yes, this is a mess."
-	| current values |
-	current := InitializationOptions at: #IMMUTABILITY ifAbsent: nil.
-	values := #(true false) collect:
-				[:bool|
-				 InitializationOptions at: #IMMUTABILITY put: bool.
-				 self cogitClass initializeNumTrampolines.
-				 (Cogit classPool at: #NumTrampolines) printString].
-	current
-		ifNil: [InitializationOptions removeKey: #IMMUTABILITY]
-		ifNotNil: [InitializationOptions at: #IMMUTABILITY put: current].
-	values first ~= values last ifTrue:
-		[aCodeGen addConstantForBinding: #NumTrampolines -> ('(IMMUTABILITY ? ' , values first , ' : ' , values last , ')')].
-	aCodeGen
-		var: #ceStoreTrampolines
-		declareC: ('#if IMMUTABILITY\sqInt ceStoreTrampolines[', NumStoreTrampolines printString, '];\#endif') withCRs
-]
-
 { #category : 'class initialization' }
 CogObjectRepresentationForSpur class >> initialize [
 	"Number of trampolines for the combined IMMUTABILITY/store check instance variable store.
@@ -1092,26 +1071,6 @@ CogObjectRepresentationForSpur >> genInlinedIdenticalOrNotIfGuts: orNot [
 ]
 
 { #category : 'compile abstract instructions' }
-CogObjectRepresentationForSpur >> genJumpBaseHeaderImmutable: baseHeaderReg [
-	"baseHeader holds at least the least significant 32 bits of the object"
-	<returnTypeC: #'AbstractInstruction *'>
-	<option: #IMMUTABILITY>
-	<inline: true>
-	cogit TstCq: objectMemory immutableBitMask R: baseHeaderReg.
-	^ cogit JumpNonZero: 0
-]
-
-{ #category : 'compile abstract instructions' }
-CogObjectRepresentationForSpur >> genJumpBaseHeaderMutable: baseHeaderReg [
-	"baseHeader holds at least the least significant 32 bits of the object"
-	<returnTypeC: #'AbstractInstruction *'>
-	<option: #IMMUTABILITY>
-	<inline: true>
-	cogit TstCq: objectMemory immutableBitMask R: baseHeaderReg.
-	^ cogit JumpZero: 0
-]
-
-{ #category : 'compile abstract instructions' }
 CogObjectRepresentationForSpur >> genJumpCharacterInScratchReg: reg [ 
 	cogit AndCq: objectMemory tagMask R: reg.
 	cogit CmpCq: objectMemory characterTag R: reg.
@@ -1126,28 +1085,12 @@ CogObjectRepresentationForSpur >> genJumpImmediate: aRegister [
 ]
 
 { #category : 'compile abstract instructions' }
-CogObjectRepresentationForSpur >> genJumpImmutable: sourceReg scratchReg: scratchReg [
-	<returnTypeC: #'AbstractInstruction *'>
-	<option: #IMMUTABILITY>
-	cogit MoveMw: 0 r: sourceReg R: scratchReg. 
-	^ self genJumpBaseHeaderImmutable: scratchReg
-]
-
-{ #category : 'compile abstract instructions' }
 CogObjectRepresentationForSpur >> genJumpInOldSpace: reg [
 	"Jump if reg is old."
 	<inline: true>
 	^cogit
 		CmpCq: objectMemory storeCheckBoundary R: reg; "N.B. FLAGS := destReg - scratchReg"
 		JumpAboveOrEqual: 0
-]
-
-{ #category : 'compile abstract instructions' }
-CogObjectRepresentationForSpur >> genJumpMutable: sourceReg scratchReg: scratchReg [
-	<returnTypeC: #'AbstractInstruction *'>
-	<option: #IMMUTABILITY>
-	cogit MoveMw: 0 r: sourceReg R: scratchReg. 
-	^ self genJumpBaseHeaderMutable: scratchReg
 ]
 
 { #category : 'compile abstract instructions' }
@@ -2325,7 +2268,7 @@ CogObjectRepresentationForSpur >> genPrimitiveStringReplace [
 	It is possible to build a bigger version with the 2 different paths but I (Clement) believe this 
 	is too big machine code wise to be worth it."
 	
-	|arrayReg startReg stopReg replReg repStartReg jumpNotSmi1 jumpNotSmi2 jumpNotSmi3 jumpImm jumpEmpty jumpImmutable jumpOutOfBounds1 jumpOutOfBounds2 jumpOutOfBounds3 jumpOutOfBounds4 jumpIncorrectFormat1 jumpIncorrectFormat2 jumpIncorrectFormat3 jumpIncorrectFormat4 result jmpDestYoung jmpAlreadyRemembered instr adjust|
+	|arrayReg startReg stopReg replReg repStartReg jumpNotSmi1 jumpNotSmi2 jumpNotSmi3 jumpImm jumpEmpty jumpOutOfBounds1 jumpOutOfBounds2 jumpOutOfBounds3 jumpOutOfBounds4 jumpIncorrectFormat1 jumpIncorrectFormat2 jumpIncorrectFormat3 jumpIncorrectFormat4 result jmpDestYoung jmpAlreadyRemembered instr adjust|
 	
 	<var: #jumpImm type: #'AbstractInstruction *'>
 	<var: #jumpEmpty type: #'AbstractInstruction *'>
@@ -2333,7 +2276,6 @@ CogObjectRepresentationForSpur >> genPrimitiveStringReplace [
 	<var: #jumpNotSmi2 type: #'AbstractInstruction *'>
 	<var: #jumpNotSmi3 type: #'AbstractInstruction *'>
 	<var: #jmpDestYoung type: #'AbstractInstruction *'>
-	<var: #jumpImmutable type: #'AbstractInstruction *'>
 	<var: #jumpOutOfBounds1 type: #'AbstractInstruction *'>
 	<var: #jumpOutOfBounds2 type: #'AbstractInstruction *'>
 	<var: #jumpOutOfBounds3 type: #'AbstractInstruction *'>
@@ -2372,11 +2314,6 @@ CogObjectRepresentationForSpur >> genPrimitiveStringReplace [
 	cogit CmpR: startReg R: stopReg.
 	jumpEmpty := cogit JumpLess: 0.
 	
-	"If receiver immutable fail the primitive "
-	self
-		cppIf: IMMUTABILITY
-		ifTrue: [jumpImmutable := self genJumpImmutable: ReceiverResultReg scratchReg: TempReg].
-		
 	"0 >= start, fail"
 	cogit CmpCq: (objectMemory integerObjectOf: 0) R: startReg.
 	jumpOutOfBounds1 := cogit JumpLessOrEqual: 0.
@@ -2538,9 +2475,6 @@ CogObjectRepresentationForSpur >> genPrimitiveStringReplace [
 			jmpTarget: (jumpOutOfBounds3 
 				jmpTarget: (jumpOutOfBounds4 
 					jmpTarget: jumpImm getJmpTarget))).
-	self
-		cppIf: IMMUTABILITY
-		ifTrue: [jumpImmutable jmpTarget: jumpImm getJmpTarget].
 
 	^ CompletePrimitive
 ]
@@ -2693,82 +2627,6 @@ CogObjectRepresentationForSpur >> genStoreSourceReg: sourceReg slotIndex: index 
 	^0
 ]
 
-{ #category : 'compile abstract instructions' }
-CogObjectRepresentationForSpur >> genStoreTrampolineCall: instVarIndex [
-	<inline: true>
-	self assert: IMMUTABILITY.
-	instVarIndex >= (NumStoreTrampolines - 1)
-		ifTrue: 
-			[ cogit MoveCq: instVarIndex R: TempReg.
-			  cogit CallRT: (ceStoreTrampolines at: NumStoreTrampolines - 1) ]
-		ifFalse: 
-			[ cogit CallRT: (ceStoreTrampolines at: instVarIndex) ].
-	 cogit annotateBytecode: cogit Label
-]
-
-{ #category : 'initialization' }
-CogObjectRepresentationForSpur >> genStoreTrampolineCalled: trampolineName instVarIndex: instVarIndex [
-	"Convention:
-	- RcvrResultReg holds the object mutated.
-	If immutability failure:
-	- TempReg holds the instance variable index mutated 
-		if instVarIndex > numDedicatedStoreTrampoline
-	- ClassReg holds the value to store
-	Registers are not lived across this trampoline as the 
-	immutability failure may need new stack frames."
-	
-	| jumpSC jumpRC |
-	<option: #IMMUTABILITY>
-	<var: #trampolineName type: #'char *'>
-	<var: #jumpSC type: #'AbstractInstruction *'>
-	<var: #jumpRC type: #'AbstractInstruction *'>
-	<inline: false>
-	cogit zeroOpcodeIndex.
-	"SendNumArgsReg is mutated but we don't care as register are not live across the trampoline.
-	 There is no reason why registers cannot be saved over the rememberObjInCorrectRememberedSet: call, but since the
-	 immutability check is a suspension point, registers cannot remain live."
-	jumpSC := self genJumpMutable: ReceiverResultReg scratchReg: SendNumArgsReg.
-	cogit
-		compileTrampolineFor: #ceCannotAssignTo:withIndex:valueToAssign:
-		numArgs: 3
-		arg: ReceiverResultReg
-		arg: (instVarIndex < (NumStoreTrampolines - 1)
-				ifTrue: [cogit trampolineArgConstant: instVarIndex]
-				ifFalse: [TempReg])
-		arg: ClassReg
-		arg: nil
-		regsToSave: cogit emptyRegisterMask
-		pushLinkReg: true
-		resultReg: NoReg.
-		
-	"Store check"
-	jumpSC jmpTarget: cogit Label.
-	"If on 64-bits and doing the remembered bit test here, we can combine the tests to fetch the header once."
-	CheckRememberedInTrampoline ifTrue:
-		[objectMemory wordSize = 8
-			ifTrue:
-				[cogit TstCq: 1 << objectMemory rememberedBitShift R: SendNumArgsReg.
-				 jumpRC := cogit JumpZero: 0.
-				 cogit RetN: 0]
-			ifFalse:
-				[jumpRC := self genCheckRememberedBitOf: ReceiverResultReg scratch: SendNumArgsReg.
-				 self assert: jumpRC opcode = JumpNonZero.
-				 jumpRC opcode: JumpZero.
-				 cogit RetN: 0].
-		 jumpRC jmpTarget: cogit Label].
-	^ cogit genTrampolineFor: #rememberObjInCorrectRememberedSet:
-		called: trampolineName
-		numArgs: 1
-		arg: ReceiverResultReg
-		arg: nil
-		arg: nil
-		arg: nil
-		regsToSave: cogit emptyRegisterMask
-		pushLinkReg: true
-		resultReg: NoReg
-		appendOpcodes: true
-]
-
 { #category : 'inline primitive support' }
 CogObjectRepresentationForSpur >> genStoreValue: value instance: destReg numSlots: numSlots [ 
 	"Store the value in the instance from field 1 to numSlots
@@ -2820,130 +2678,6 @@ CogObjectRepresentationForSpur >> genStoreValue: value instance: destReg numSlot
 	^0
 ]
 
-{ #category : 'compile abstract instructions' }
-CogObjectRepresentationForSpur >> genStoreWithImmutabilityAndStoreCheckSourceReg: sourceReg slotIndex: index destReg: destReg scratchReg: scratchReg needRestoreRcvr: needRestoreRcvr [ 
-	"Store check code is duplicated to use a single trampoline"
-	<option: #IMMUTABILITY>
-	| immutableJump jmpImmediate jmpDestYoung jmpOldAndOld jmpPermAndPerm jmpAlreadyRemembered jmpIsMachineCode|
-	<var: #immutableJump type: #'AbstractInstruction *'>
-	<var: #jmpImmediate type: #'AbstractInstruction *'>
-	<var: #jmpDestYoung type: #'AbstractInstruction *'>
-	<var: #jmpOldAndOld type: #'AbstractInstruction *'>
-	<var: #jmpPermAndPerm type: #'AbstractInstruction *'>
-	<var: #jmpAlreadyRemembered type: #'AbstractInstruction *'>
-	<var: #jmpIsMachineCode type: #'AbstractInstruction *'>
-
-	immutableJump := self genJumpImmutable: destReg scratchReg: scratchReg.
-	
-	cogit genTraceStores.
-	
-	"do the store"
-	cogit MoveR: sourceReg
-		   Mw: index * objectMemory wordSize + objectMemory baseHeaderSize
-		   r: destReg.
-
-	"store check"
-	jmpImmediate := self genJumpImmediate: sourceReg.
-
-	self 
-		genCheckObjectPosition: destReg 
-		scratchReg: scratchReg 
-		valueReg: sourceReg
-		results: [ :isDestYoung :isOldAndOld :isPermAndPerm :valueIsMachineCode| 
-			jmpDestYoung := isDestYoung.
-			jmpOldAndOld := isOldAndOld.
-			jmpIsMachineCode := valueIsMachineCode.			
-			jmpPermAndPerm := isPermAndPerm].
-
-	"Need to remember this only if the remembered bit is not already set."
-	CheckRememberedInTrampoline ifFalse:
-		[jmpAlreadyRemembered := self genCheckRememberedBitOf: destReg scratch: scratchReg].
-	"Set the inst var index for the benefit of the immutability check. The trampoline will
-	 repeat the check to choose between the immutbality violation and the store check."
-	immutableJump jmpTarget: cogit Label.
-	self genStoreTrampolineCall: index.
-	cogit voidReceiverOptStatus.
-	needRestoreRcvr ifTrue:
-		[cogit putSelfInReceiverResultReg].
-
-	jmpImmediate jmpTarget:
-	(jmpDestYoung jmpTarget:
-	(jmpOldAndOld jmpTarget:
-	(jmpIsMachineCode jmpTarget:
-	(jmpPermAndPerm jmpTarget:
-		cogit Label)))).
-	CheckRememberedInTrampoline ifFalse:
-		[jmpAlreadyRemembered jmpTarget: jmpOldAndOld getJmpTarget].
-	^ 0
-]
-
-{ #category : 'compile abstract instructions' }
-CogObjectRepresentationForSpur >> genStoreWithImmutabilityButNoStoreCheckSourceReg: sourceReg slotIndex: index destReg: destReg scratchReg: scratchReg needRestoreRcvr: needRestoreRcvr [
-	"Gen an immutability check with no store check (e.g. assigning an immediate literal)"
-	<option: #IMMUTABILITY>
-	<var: #mutableJump type: #'AbstractInstruction *'>
-	<var: #immutabilityFailure type: #'AbstractInstruction *'>
-	| immutabilityFailure mutableJump |
-	
-	"imm check has its own trampoline"
-	mutableJump := self genJumpMutable: destReg scratchReg: scratchReg.
-	self genStoreTrampolineCall: index.
-	cogit voidReceiverOptStatus.
-	needRestoreRcvr ifTrue:
-		[cogit putSelfInReceiverResultReg].
-	immutabilityFailure := cogit Jump: 0.
-	mutableJump jmpTarget: cogit Label.
-
-	cogit genTraceStores.
-	
-	"do the store"
-	cogit MoveR: sourceReg
-		   Mw: index * objectMemory wordSize + objectMemory baseHeaderSize
-		   r: destReg.
-		
-	immutabilityFailure jmpTarget: cogit Label.
-
-	^ 0
-]
-
-{ #category : 'compile abstract instructions' }
-CogObjectRepresentationForSpur >> genStoreWithImmutabilityCheckSourceReg: sourceReg slotIndex: index destReg: destReg scratchReg: scratchReg needsStoreCheck: needsStoreCheck needRestoreRcvr: needRestoreRcvr [
-	<option: #IMMUTABILITY>
-	"We know there is a frame as immutability check requires a frame"
-	"needRestoreRcvr has to be true to keep RcvrResultReg live with the receiver in it across the trampoline"
-	
-	"Trampoline convention..."
-	self assert: destReg == ReceiverResultReg.
-	self assert: scratchReg == TempReg.
-  	self assert: sourceReg == ClassReg.
-	
-	"The two paths are very different as the trampoline is shared in 1 case so we split here"
-	needsStoreCheck
-		ifTrue: 
-			[ self 
-				genStoreWithImmutabilityAndStoreCheckSourceReg: sourceReg 
-				slotIndex: index 
-				destReg: destReg 
-				scratchReg: scratchReg 
-				needRestoreRcvr: needRestoreRcvr ]
-		ifFalse: 
-			[ self 
-				genStoreWithImmutabilityButNoStoreCheckSourceReg: sourceReg 
-				slotIndex: index 
-				destReg: destReg 
-				scratchReg: scratchReg 
-				needRestoreRcvr: needRestoreRcvr ].
-	^ 0
-]
-
-{ #category : 'mapped inlined primitive support' }
-CogObjectRepresentationForSpur >> genVarIndexCallStoreTrampoline [	
-	self assert: IMMUTABILITY.
-	self cppIf: #IMMUTABILITY
-		ifTrue: [cogit CallRT: (ceStoreTrampolines at: NumStoreTrampolines - 1).
-				cogit annotateBytecode: cogit Label ].
-]
-
 { #category : 'initialization' }
 CogObjectRepresentationForSpur >> generateObjectRepresentationTrampolines [
 	"Do the store check.  Answer the argument for the benefit of the code generator;
@@ -2951,21 +2685,6 @@ CogObjectRepresentationForSpur >> generateObjectRepresentationTrampolines [
 	 it allows the code generator to reload ReceiverResultReg cheaply.
 	 In Spur the only thing we leave to the run-time is adding the receiver to the
 	 remembered set and setting its isRemembered bit."
-	self 
-		cppIf: IMMUTABILITY
-		ifTrue: 
-			[self cCode: [] inSmalltalk:
-				[ceStoreTrampolines := CArrayAccessor on: (Array new: NumStoreTrampolines)].
-			 0 to: NumStoreTrampolines - 1 do:
-				[:instVarIndex |
-				 ceStoreTrampolines
-					at: instVarIndex
-					put: (self 
-							genStoreTrampolineCalled: (cogit 
-															trampolineName: 'ceStoreTrampoline' 
-															numArgs: instVarIndex 
-															limit: NumStoreTrampolines - 2) 
-							instVarIndex: instVarIndex)]].
 	ceNewHashTrampoline := self genNewHashTrampoline: false called: 'ceNewHash'.
 	SistaVM ifTrue: [ceInlineNewHashTrampoline := self genNewHashTrampoline: true  called: 'ceInlineNewHash'].
 	ceStoreCheckTrampoline := self genStoreCheckTrampoline.

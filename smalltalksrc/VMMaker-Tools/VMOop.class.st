@@ -36,7 +36,6 @@ VMOop >> flags [
 
 	self ifBroken: [ ^ 'broken' ].
 	^ ((memory isGrey: oop) ifTrue: ['g'] ifFalse: ['.']),
-			 ((memory isImmutable: oop) ifTrue: ['i'] ifFalse: ['.']),
 			 ((memory isMarked: oop) ifTrue: ['m'] ifFalse: ['.']),
 			 ((memory isPinned: oop) ifTrue: ['p'] ifFalse: ['.']),
 			 ((memory isRemembered: oop) ifTrue: ['r'] ifFalse: ['.'])

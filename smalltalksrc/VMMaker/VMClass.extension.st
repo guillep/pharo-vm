@@ -65,10 +65,6 @@ VMClass class >> initializeMiscConstants [
 			 :c | c == SpurSelectiveCompactor ] ]) ifTrue: [ 
 		self error: 'Selective compactor requires read barrier' ].
 
-	"And not these; they're compile-time"
-	IMMUTABILITY := InitializationOptions
-		                at: #IMMUTABILITY
-		                ifAbsent: [ true ].
 	WIN32 := InitializationOptions at: #WIN32 ifAbsent: [false].
 	PRIdSQINT := InitializationOptions at: #FormatSqInt ifAbsent: [ 'ld' ]
 ]

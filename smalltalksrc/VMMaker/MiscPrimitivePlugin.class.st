@@ -82,8 +82,6 @@ MiscPrimitivePlugin >> primitiveCompressToByteArray [
 	interpreterProxy failed ifTrue: [^nil].
 	(interpreterProxy isBytes: (interpreterProxy stackValue: 0)) ifFalse:
 		[^interpreterProxy primitiveFailFor: PrimErrBadArgument].
-	(interpreterProxy isOopImmutable: (interpreterProxy stackValue: 0)) ifTrue:
-		[^interpreterProxy primitiveFailFor: PrimErrNoModification].
 	ba := interpreterProxy firstIndexableField: (interpreterProxy stackValue: 0).
 	size := interpreterProxy sizeOfSTArrayFromCPrimitive: bm.
 	destSize := interpreterProxy sizeOfSTArrayFromCPrimitive: ba.
@@ -143,8 +141,6 @@ MiscPrimitivePlugin >> primitiveConvert8BitSigned [
 										cCoerce: (interpreterProxy arrayValueOf: soundBufferOop)
 										to: #'unsigned short *'].
 	interpreterProxy failed ifTrue: [^interpreterProxy primitiveFailFor: PrimErrBadArgument].
-	(interpreterProxy isOopImmutable: soundBufferOop) ifTrue:
-		[^interpreterProxy primitiveFailFor: PrimErrNoModification].
 	arraySize := interpreterProxy sizeOfSTArrayFromCPrimitive: aByteArray.
 	(interpreterProxy byteSizeOf: soundBufferOop) < (2 * arraySize) ifTrue:
 		[^interpreterProxy primitiveFailFor: PrimErrBadArgument].
@@ -174,8 +170,6 @@ MiscPrimitivePlugin >> primitiveDecompressFromByteArray [
 				inSmalltalk: [interpreterProxy
 								cCoerce: (interpreterProxy arrayValueOf: (interpreterProxy stackValue: 2))
 								to: #'int *'].
-	(interpreterProxy isOopImmutable: (interpreterProxy stackValue: 2)) ifTrue:
-		[^interpreterProxy primitiveFailFor: PrimErrNoModification].
 	(interpreterProxy isBytes: (interpreterProxy stackValue: 1)) ifFalse:
 		[^interpreterProxy primitiveFailFor: PrimErrBadArgument].
 	ba := interpreterProxy firstIndexableField: (interpreterProxy stackValue: 1).
@@ -360,8 +354,6 @@ MiscPrimitivePlugin >> primitiveTranslateStringWithTable [
 	aStringOop := interpreterProxy stackValue: 3.
 	(interpreterProxy isBytes: aStringOop) ifFalse:
 		[^interpreterProxy primitiveFailFor: PrimErrBadArgument].
-	(interpreterProxy isOopImmutable: aStringOop) ifTrue:
-		[^interpreterProxy primitiveFailFor: PrimErrNoModification].
 	start := interpreterProxy stackIntegerValue: 2.
 	interpreterProxy failed ifTrue:
 		[^interpreterProxy primitiveFailFor: PrimErrBadArgument].	

@@ -2977,7 +2977,6 @@ SpurMemoryManager >> changeClassOf: rcvr to: argClass [
 
 	<inline: false>
 	| classFormat fixedFields instFormat newFormat classIndex instSlots instBytes |
-	(self isObjImmutable: rcvr) ifTrue: [ ^ PrimErrNoModification ].
 	classFormat := self formatOfClass: argClass.
 	fixedFields := self fixedFieldsOfClassFormat: classFormat.
 	classFormat := self instSpecOfClassFormat: classFormat.
@@ -4140,8 +4139,6 @@ SpurMemoryManager >> cloneInOldSpace: objOop forPinning: forPinning [
 					[self getFromOldSpaceRememberedSet remember: newObj]]].
 	(hash := self rawHashBitsOf: objOop) ~= 0 ifTrue:
 		[self setHashBitsOf: newObj to: hash].
-	(self isObjImmutable: objOop) ifTrue:
-		[self setIsImmutableOf: newObj to: true].
 	^newObj
 ]
 
@@ -4270,43 +4267,50 @@ SpurMemoryManager >> containsOnlyValidBecomeObjects: array1 and: array2 twoWay: 
 		Two-way become may require memory to create copies => PrimErrNoMemory.
 
 	 Arrays are not modified (and no forwarders unforward)."
+
 	<inline: true>
 	| fieldOffset effectsFlags oop1 oop2 size |
 	fieldOffset := self lastPointerOf: array1.
 	effectsFlags := size := 0.
 	"array1 is known to be the same size as array2"
-	[fieldOffset >= self baseHeaderSize] whileTrue:
-		[oop1 := self longAt: array1 + fieldOffset.
-		 (self isOopForwarded: oop1) ifTrue:
-			[oop1 := self followForwarded: oop1
-			"Do not update the array here, or chose to handle the rememberset correctly."].
-		 self ifOopInvalidForBecome: oop1 errorCodeInto: [:errCode| ^errCode].
-		 effectsFlags := effectsFlags bitOr: (self becomeEffectFlagsFor: oop1).
-		 oop2 := self longAt: array2 + fieldOffset.
-		 (self isOopForwarded: oop2) ifTrue:
-			[oop2 := self followForwarded: oop2
-			"Do not update the array here, or chose to handle the rememberset correctly."].
-		 isTwoWay
-			ifTrue:
-				[self ifOopInvalidForBecome: oop2 errorCodeInto: [:errCode| ^errCode].
-				 size := size + (self bytesInObject: oop1) + (self bytesInObject: oop2).
-				 effectsFlags := effectsFlags bitOr: (self becomeEffectFlagsFor: oop2)]
-			ifFalse:
-				[(copyHash and: [(self isImmediate: oop2) or: [self isImmutable: oop2]]) ifTrue:
-					[^PrimErrInappropriate]].
-		 fieldOffset := fieldOffset - self bytesPerOop].
-	
+	[ fieldOffset >= self baseHeaderSize ] whileTrue: [
+		oop1 := self longAt: array1 + fieldOffset.
+		(self isOopForwarded: oop1) ifTrue: [
+			oop1 := self followForwarded: oop1
+			"Do not update the array here, or chose to handle the rememberset correctly." ].
+		self
+			ifOopInvalidForBecome: oop1
+			errorCodeInto: [ :errCode | ^ errCode ].
+		effectsFlags := effectsFlags bitOr:
+			                (self becomeEffectFlagsFor: oop1).
+		oop2 := self longAt: array2 + fieldOffset.
+		(self isOopForwarded: oop2) ifTrue: [
+			oop2 := self followForwarded: oop2
+			"Do not update the array here, or chose to handle the rememberset correctly." ].
+		isTwoWay
+			ifTrue: [
+				self
+					ifOopInvalidForBecome: oop2
+					errorCodeInto: [ :errCode | ^ errCode ].
+				size := size + (self bytesInObject: oop1)
+				        + (self bytesInObject: oop2).
+				effectsFlags := effectsFlags bitOr:
+					                (self becomeEffectFlagsFor: oop2) ]
+			ifFalse: [
+				(copyHash and: [ self isImmediate: oop2 ]) ifTrue: [
+					^ PrimErrInappropriate ] ].
+		fieldOffset := fieldOffset - self bytesPerOop ].
+
 	"We are going to try to put all objects in the largets free chunk of the old space.
 	If this is true we are sure we can fit them. If it is not true, maybe they fit. But as the primitive cannot
 	abort later, it is needed to take a decision now. A better suggestion can improve the implementation.
 	This will fail, and produce a grow requested by the image (with a compaction) and later retry."
-	
-	size >= self sizeOfLargestFreeChunk ifTrue:
-		[^PrimErrNoMemory].
+
+	size >= self sizeOfLargestFreeChunk ifTrue: [ ^ PrimErrNoMemory ].
 
 	"only set flags after checking all args."
 	becomeEffectsFlags := effectsFlags.
-	^0
+	^ 0
 ]
 
 { #category : 'debug support' }
@@ -4589,9 +4593,6 @@ SpurMemoryManager >> doMoveToPermSpace: objOop addToRememberedSet: shouldAddToRe
 
 	(hash := self rawHashBitsOf: objOop) ~= 0 ifTrue: [ 
 		self setHashBitsOf: newObj to: hash ].
-	
-	(self isObjImmutable: objOop) ifTrue: [ 
-		self setIsImmutableOf: newObj to: true ].
 
 	becomeEffectsFlags := becomeEffectsFlags bitOr: (self becomeEffectFlagsFor: objOop).
 
@@ -5838,7 +5839,6 @@ SpurMemoryManager >> formatStringOf: objOop [
 { #category : 'become implementation' }
 SpurMemoryManager >> forward: obj1 to: obj2 [
 	self set: obj1 classIndexTo: self isForwardedObjectClassIndexPun formatTo: self forwardedFormat.
-	self cppIf: IMMUTABILITY ifTrue: [ self setIsImmutableOf: obj1 to: false ].
 	self storePointer: 0 ofForwarder: obj1 withValue: obj2.
 	"For safety make sure the forwarder has a slot count that includes its contents."
 	(self rawNumSlotsOf: obj1) = 0 ifTrue:
@@ -6547,12 +6547,9 @@ SpurMemoryManager >> identityHashHalfWordMask [
 SpurMemoryManager >> ifOopInvalidForBecome: oop errorCodeInto: aBlock [
 	"Evaluates aBlock with an appropriate error if oop is invalid for become."
 
-	(self isImmediate: oop) ifTrue:
-		[^aBlock value: PrimErrInappropriate].
-	(self isPinned: oop) ifTrue:
-		[^aBlock value: PrimErrObjectIsPinned].
-	(self isObjImmutable: oop) ifTrue:
-		[^aBlock value: PrimErrNoModification]
+	(self isImmediate: oop) ifTrue: [
+		^ aBlock value: PrimErrInappropriate ].
+	(self isPinned: oop) ifTrue: [ ^ aBlock value: PrimErrObjectIsPinned ]
 ]
 
 { #category : 'image segment in/out' }
@@ -6569,21 +6566,6 @@ SpurMemoryManager >> imageSizeToWrite [
 	<returnTypeC: #'size_t'> 
 	self assert: self newSpaceIsEmpty.
 	^segmentManager totalBytesInNonEmptySegments + self totalBytesInPermanentSpace.
-]
-
-{ #category : 'header format' }
-SpurMemoryManager >> immutableBitMask [
-	"mask the immutable bit in the base header word"
-	<api>
-	<option: #IMMUTABILITY>
-	^ 1 << self immutableBitShift
-]
-
-{ #category : 'header format' }
-SpurMemoryManager >> immutableBitShift [
-	<cmacro>
-	"bit 1 of 2-bit field above classIndex (little endian)"
-	^23
 ]
 
 { #category : 'free space' }
@@ -7687,11 +7669,6 @@ SpurMemoryManager >> isImmediateFloat: oop [
 	self subclassResponsibility
 ]
 
-{ #category : 'header access' }
-SpurMemoryManager >> isImmutable: objOop [
-	^((self longAt: objOop) >> self immutableBitShift bitAnd: 1) ~= 0
-]
-
 { #category : 'class table' }
 SpurMemoryManager >> isInClassTable: objOop [
 	| hash |
@@ -7951,14 +7928,6 @@ SpurMemoryManager >> isObjEphemeron: objOop [
 	^self isEphemeronFormat: (self formatOf: objOop)
 ]
 
-{ #category : 'header access' }
-SpurMemoryManager >> isObjImmutable: anOop [
-	<inline: true>
-	^self cppIf: IMMUTABILITY
-		ifTrue: [self isImmutable: anOop]
-		ifFalse: [false]
-]
-
 { #category : 'object testing' }
 SpurMemoryManager >> isOld: oop [
 
@@ -7978,20 +7947,6 @@ SpurMemoryManager >> isOopCompiledMethod: oop [
 SpurMemoryManager >> isOopForwarded: oop [
 	<api>
 	^(self isNonImmediate: oop) and: [self isForwarded: oop]
-]
-
-{ #category : 'object testing' }
-SpurMemoryManager >> isOopImmutable: oop [
-	<api>
-	^(self isImmediate: oop)
-	  or: [self isImmutable: oop]
-]
-
-{ #category : 'object testing' }
-SpurMemoryManager >> isOopMutable: oop [
-	<api>
-	^(self isNonImmediate: oop)
-	  and: [(self isImmutable: oop) not]
 ]
 
 { #category : 'debug printing' }
@@ -10436,10 +10391,6 @@ SpurMemoryManager >> outOfPlaceBecome: obj1 and: obj2 copyHashFlag: copyHashFlag
 
 	clone2 ifNil: [ self error: 'Not enough space to copy the objects in two-way become. This should have been detected before'.^ self ].	
 			
-	(self isObjImmutable: obj1) ifTrue:
-		[self setIsImmutableOf: clone1 to: true].
-	(self isObjImmutable: obj2) ifTrue:
-		[self setIsImmutableOf: clone2 to: true].
 	copyHashFlag
 		ifTrue:
 			[self setHashBitsOf: clone1 to: (self rawHashBitsOf: obj1).
@@ -10894,7 +10845,6 @@ SpurMemoryManager >> printEntity: oop [
 			print: ((self formatOf: oop) <= 16rF ifTrue: ['f:0'] ifFalse: ['f:']);
 			printHexnpnp: (self formatOf: oop);
 			print: ((self isGrey: oop) ifTrue: [' g'] ifFalse: [' .']);
-			print: ((self isImmutable: oop) ifTrue: ['i'] ifFalse: ['.']);
 			print: ((self isMarked: oop) ifTrue: ['m'] ifFalse: ['.']);
 			print: ((self isPinned: oop) ifTrue: ['p'] ifFalse: ['.']);
 			print: ((self isRemembered: oop) ifTrue: ['r'] ifFalse: ['.'])].
@@ -11030,7 +10980,6 @@ SpurMemoryManager >> printHeaderOf: objOop [
 		printChar: ((self isGrey: objOop) ifTrue: [$G] ifFalse: [$g]);
 		printChar: ((self isPinned: objOop) ifTrue: [$P] ifFalse: [$p]);
 		printChar: ((self isRemembered: objOop) ifTrue: [$R] ifFalse: [$r]);
-		printChar: ((self isImmutable: objOop) ifTrue: [$I] ifFalse: [$i]);
 		print: ' hash '; printHexnp: (self rawHashBitsOf: objOop);
 		print: ' fmt '; printHexnp: (self formatOf: objOop);
 		print: ' cidx '; printHexnp: (self classIndexOf: objOop);
@@ -11043,7 +10992,6 @@ SpurMemoryManager >> printHeaderTypeOf: objOop [
 		print: ((self numSlotsOfAny: objOop) >= self numSlotsMask
 					ifTrue: [' hdr16 ']
 					ifFalse: [' hdr8 ']);
-		printChar: ((self isImmutable: objOop) ifTrue: [$i] ifFalse: [$.]);
 		printChar: ((self isRemembered: objOop) ifTrue: [$r] ifFalse: [$.]);
 		printChar: ((self isPinned: objOop) ifTrue: [$p] ifFalse: [$.]);
 		printChar: ((self isMarked: objOop) ifTrue: [$m] ifFalse: [$.]);
@@ -12130,11 +12078,6 @@ SpurMemoryManager >> setIsGreyOf: objOop to: aBoolean [
 ]
 
 { #category : 'header access' }
-SpurMemoryManager >> setIsImmutableOf: objOop to: aBoolean [
-	self subclassResponsibility
-]
-
-{ #category : 'header access' }
 SpurMemoryManager >> setIsMarkedOf: objOop to: aBoolean [
 	self subclassResponsibility
 ]
@@ -12878,19 +12821,6 @@ SpurMemoryManager >> storePointer: fieldIndex ofObject: objOop withValue: valueP
 	^self
 		unsignedLongAt: objOop + self baseHeaderSize + (fieldIndex << self shiftForWord)
 		put: valuePointer
-]
-
-{ #category : 'object access' }
-SpurMemoryManager >> storePointerImmutabilityCheck: fieldIndex ofObject: objOop withValue: valuePointer [
-	"Note must check here for stores of young objects into old ones."
-	<inline: true> "Must be inlined for the normal send in cannotAssign:to:withIndex:"
-
-	self cppIf: IMMUTABILITY ifTrue: 
-		[self deny: (self isImmediate: objOop).
-		 (self isImmutable: objOop) ifTrue: 
-			[^coInterpreter cannotAssign: valuePointer to: objOop withIndex: fieldIndex]].
-
-	self storePointer: fieldIndex ofObject: objOop withValue: valuePointer
 ]
 
 { #category : 'heap management' }

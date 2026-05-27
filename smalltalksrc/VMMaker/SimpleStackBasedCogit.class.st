@@ -132,7 +132,7 @@ SimpleStackBasedCogit class >> initializeBytecodeTableForSistaV1 [
 													v3:ShortForward:Branch:Distance:)
 
 		"stores"
-		(1 200 207 genStoreAndPopReceiverVariableBytecode isInstVarRef isMappedIfImmutability needsFrameIfImmutability: -1)
+		(1 200 207 genStoreAndPopReceiverVariableBytecode isInstVarRef isMapped)
 		(1 208 215 genStoreAndPopTemporaryVariableBytecode)
 
 		(1 216 216 genPopStackBytecode needsFrameNever: -1)
@@ -169,11 +169,11 @@ SimpleStackBasedCogit class >> initializeBytecodeTableForSistaV1 [
 		(2 239 239 genExtJumpIfFalse			branch isBranchFalse isMapped "because of mustBeBoolean" v4:Long:Branch:Distance:)
 
 		"stores"
-		(2 240 240 genExtStoreAndPopReceiverVariableBytecode isInstVarRef isMappedIfImmutability)
-		(2 241 241 genExtStoreAndPopLiteralVariableBytecode isMappedIfImmutability)
+		(2 240 240 genExtStoreAndPopReceiverVariableBytecode isInstVarRef isMapped)
+		(2 241 241 genExtStoreAndPopLiteralVariableBytecode isMapped)
 		(2 242 242 genLongStoreAndPopTemporaryVariableBytecode)
-		(2 243 243 genExtStoreReceiverVariableBytecode isInstVarRef isMappedIfImmutability)
-		(2 244 244 genExtStoreLiteralVariableBytecode isMappedIfImmutability)
+		(2 243 243 genExtStoreReceiverVariableBytecode isInstVarRef isMapped)
+		(2 244 244 genExtStoreLiteralVariableBytecode isMapped)
 		(2 245 245 genLongStoreTemporaryVariableBytecode)
 
 		(2 246 247 unknownBytecode)
@@ -999,13 +999,11 @@ SimpleStackBasedCogit >> doubleExtendedDoAnythingBytecode [
 						ifFalse: [self genPushReceiverVariable: byte2]].
 			[3]	->	[self genPushLiteralIndex: byte2].
 			[4]	->	[self genPushLiteralVariable: byte2].
-			[7]	->	[self genStorePop: false LiteralVariable: byte2.
-					 self cppIf: IMMUTABILITY ifTrue: ["genStorePop:LiteralVariable: annotates; don't annotate twice" ^0]] }
+			[7]	->	[self genStorePop: false LiteralVariable: byte2] }
 		otherwise: "5 & 6"
 			[(coInterpreter isWriteMediatedContextInstVarIndex: byte2)
 				ifTrue: [self genStorePop: opType = 6 MaybeContextReceiverVariable: byte2]
-				ifFalse: [self genStorePop: opType = 6 ReceiverVariable: byte2].
-			 self cppIf: IMMUTABILITY ifTrue: ["genStorePop:...ReceiverVariable: annotate; don't annotate twice" ^0]].
+				ifFalse: [self genStorePop: opType = 6 ReceiverVariable: byte2]].
 	"We need a map entry for this bytecode for correct parsing (if the method builds a frame)."
 	needsFrame ifTrue:
 		[self annotateBytecode: self Label].
@@ -1069,10 +1067,7 @@ SimpleStackBasedCogit >> extendedStoreAndPopBytecode [
 	variableType = 0 ifTrue:
 		[^self genStorePop: true ReceiverVariable: variableIndex].
 	variableType = 1 ifTrue:
-		[self genStorePop: true TemporaryVariable: variableIndex.
-		"needs a fake map entry if Immutability is ON..."
-		self cppIf: IMMUTABILITY ifTrue: [ self annotateBytecode: self Label. ].
-		^ 0].
+		[^self genStorePop: true TemporaryVariable: variableIndex].
 	variableType = 3 ifTrue:
 		[^self genStorePop: true LiteralVariable: variableIndex].
 	^EncounteredUnknownBytecode
@@ -1402,9 +1397,7 @@ SimpleStackBasedCogit >> genExtStorePopRemoteTempOrInstVarLongBytecodePopBoolean
 	extB := 0. "simple cogit don't use the extra flag"
 	numExtB := 0.
 	(byte2 noMask: coInterpreter remoteIsInstVarAccess)
-		ifTrue: 
-			[ self genStorePop: popBoolean RemoteTemp: byte1 At: byte2.
-			self cppIf: IMMUTABILITY ifTrue: [ self annotateBytecode: self Label ] ]
+		ifTrue: [ self genStorePop: popBoolean RemoteTemp: byte1 At: byte2 ]
 		ifFalse: 
 			[ index := byte1 + (extA << 8).
 			extA := 0.

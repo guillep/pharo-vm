@@ -621,9 +621,7 @@ Cogit class >> generatorTableFrom: anArray [
 						generator: tuple fourth;
 						isReturn: (tuple includes: #return);
 						hasUnsafeJump: (tuple includes: #hasUnsafeJump);
-						isMapped: ((tuple includes: #isMappedIfImmutability)
-										ifTrue: [self bindingOf: #IMMUTABILITY]
-										ifFalse: [tuple includes: #isMapped]);
+						isMapped: (tuple includes: #isMapped);
 						isMappedInBlock: (tuple includes: #isMappedInBlock);
 						spanFunction: ((tuple includes: #branch)
 							ifTrue: [ tuple detect: [:thing| thing isSymbol and: [thing numArgs = 4]]]);
@@ -9882,11 +9880,6 @@ Cogit >> missOffset [
 Cogit >> mnuOffset [
 	<api>
 	^missOffset
-]
-
-{ #category : 'compile abstract instructions' }
-Cogit >> needsFrameIfImmutability: stackDelta [
-	^ IMMUTABILITY
 ]
 
 { #category : 'compile abstract instructions' }

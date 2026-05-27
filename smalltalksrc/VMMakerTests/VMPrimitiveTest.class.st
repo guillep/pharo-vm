@@ -294,27 +294,6 @@ VMPrimitiveTest >> testPrimitiveArrayBecomeFailsForImmediates [
 ]
 
 { #category : 'tests - become' }
-VMPrimitiveTest >> testPrimitiveArrayBecomeFailsForImmutableObject [
-	| class object1 object2 array1 array2 |
-	class := self newClassInOldSpaceWithSlots: 1 instSpec: memory nonIndexablePointerFormat.
-	
-	object1 := memory instantiateClass: class.
-	object2 := memory instantiateClass: class.
-	memory setIsImmutableOf: object2 to: true. 
-	
-	array1 := self newArrayWith: { object2 }.
-	array2 := self newArrayWith: { object1 }.
-	
-	interpreter push: array1.
-	interpreter push: array2.
-	
-	interpreter primitiveArrayBecome.
-	
-	self assert: interpreter failed.
-	self assert: interpreter primFailCode equals: PrimErrNoModification
-]
-
-{ #category : 'tests - become' }
 VMPrimitiveTest >> testPrimitiveArrayBecomeFailsForPinnedObject [
 	| class object1 object2 array1 array2 |
 	class := self newClassInOldSpaceWithSlots: 1 instSpec: memory nonIndexablePointerFormat.
@@ -438,30 +417,6 @@ VMPrimitiveTest >> testPrimitiveAsCharacterFailsWithNonIntObject [
 	
 	self assert: interpreter failed.
 	self assert: interpreter primFailCode equals: PrimErrBadReceiver. 
-]
-
-{ #category : 'tests - primitiveAt' }
-VMPrimitiveTest >> testPrimitiveAtDoesntFailsIfObjectIsImmutable [
-
-	| class object slotIndex objectToPutInSlot |
-	class := self newClassInOldSpaceWithSlots: 0 instSpec: memory arrayFormat.
-	
-	object := memory instantiateClass: class indexableSize: 1.
-
-	interpreter push: object.
-	interpreter push: memory trueObject.
-	interpreter primitiveSetImmutability.
-	
-	slotIndex := memory integerObjectOf: 1.
-	objectToPutInSlot := memory instantiateClass: class indexableSize: 1.
-	interpreter push: object.
-	interpreter push: slotIndex.
-	
-	interpreter primitiveAt.
-	
-	self deny: interpreter failed.
-	
-self assert: (memory fetchPointer: 0 ofObject: object) equals: interpreter stackTop. 
 ]
 
 { #category : 'tests - primitiveAt' }
@@ -621,30 +576,6 @@ VMPrimitiveTest >> testPrimitiveAtPutFailsIfObjectIsContext [
 	self assert: interpreter failed.
 	"2 is the bad receiver exception in the special object array for the primFailCode"
 	self assert: interpreter primFailCode equals: 2. 
-]
-
-{ #category : 'tests - primitiveAtPut' }
-VMPrimitiveTest >> testPrimitiveAtPutFailsIfObjectIsImmutable [
-
-	| class object slotIndex objectToPutInSlot |
-	class := self newClassInOldSpaceWithSlots: 0 instSpec: memory arrayFormat.
-	
-	object := memory instantiateClass: class indexableSize: 1.
-
-	interpreter push: object.
-	interpreter push: memory trueObject.
-	interpreter primitiveSetImmutability.
-	
-	slotIndex := memory integerObjectOf: 1.
-	objectToPutInSlot := memory instantiateClass: class indexableSize: 1.
-	interpreter push: object.
-	interpreter push: slotIndex.
-	interpreter push: objectToPutInSlot.
-	
-	interpreter primitiveAtPut.
-	
-	self assert: interpreter failed.
-	self assert: interpreter primFailCode equals: PrimErrNoModification. 
 ]
 
 { #category : 'tests - primitiveAtPut' }
@@ -1871,42 +1802,6 @@ VMPrimitiveTest >> testPrimitiveFormatWithWeakArray [
 	self
 		assert: interpreter stackTop
 		equals: (memory integerObjectOf: memory weakArrayFormat)
-]
-
-{ #category : 'tests - primitiveImmutability' }
-VMPrimitiveTest >> testPrimitiveGetImmutabilityOfImmediateReturnsTrue [
-
-	interpreter push: (memory integerObjectOf: 1).
-	interpreter primitiveGetImmutability.
-	
-	self assert: interpreter stackTop equals: memory trueObject
-]
-
-{ #category : 'tests - primitiveImmutability' }
-VMPrimitiveTest >> testPrimitiveGetImmutabilityOnANewObjectIsFalse [
-	| class object |
-	class := self newClassInOldSpaceWithSlots: 0 instSpec: memory nonIndexablePointerFormat.
-	
-	object := memory instantiateClass: class.
-
-	interpreter push: object.
-	interpreter primitiveGetImmutability.
-
-	self assert: interpreter stackTop equals: memory falseObject
-]
-
-{ #category : 'tests - primitiveImmutability' }
-VMPrimitiveTest >> testPrimitiveGetImmutabilityReturnsTrueIfObjectIsImmutable [
-	| class object |
-	class := self newClassInOldSpaceWithSlots: 0 instSpec: memory nonIndexablePointerFormat.
-	
-	object := memory instantiateClass: class.
-	memory setIsImmutableOf: object to: true. 
-
-	interpreter push: object.
-	interpreter primitiveGetImmutability.
-	
-	self assert: interpreter stackTop equals: memory trueObject
 ]
 
 { #category : 'tests - primitiveGreaterOrEqual' }
@@ -3602,31 +3497,6 @@ VMPrimitiveTest >> testPrimitiveQuoWithNoErrorPopsOperands [
 	"The previous lines pop the result of primiviteAdd (1 2) for us to check that 1 and 2 were poped from the Stack by checking that the next value is our marker, for instance 42"
 	
 	self assert: interpreter stackTop equals: (memory integerObjectOf: 42). 
-]
-
-{ #category : 'tests - primitiveImmutability' }
-VMPrimitiveTest >> testPrimitiveSetImmutabilityOfImmediateShouldFail [
-
-	interpreter push: (memory integerObjectOf: 1).
-	interpreter push: memory trueObject.
-	interpreter primitiveSetImmutability.
-	
-	self assert: interpreter failed
-]
-
-{ #category : 'tests - primitiveImmutability' }
-VMPrimitiveTest >> testPrimitiveSetImmutabilityOfObjectAsTrueSetsImmutability [
-
-	| class object |
-	class := self newClassInOldSpaceWithSlots: 0 instSpec: memory nonIndexablePointerFormat.
-	
-	object := memory instantiateClass: class.
-
-	interpreter push: object.
-	interpreter push: memory trueObject.
-	interpreter primitiveSetImmutability.
-	
-	self assert: (memory isImmutable: object)
 ]
 
 { #category : 'tests - primitiveSize' }
