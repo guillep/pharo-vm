@@ -999,20 +999,20 @@ StackToRegisterMappingCogit >> compileEntireMethod [
 	needsFrame
 		ifTrue: [ 
 			self compileFrameBuild.
-			self initSimStackForFramelessMethod: initialPC ]
-		ifFalse: [ self initSimStackForFramefulMethod: initialPC ].
+			self initSimStackForFramefulMethod: initialPC ]
+		ifFalse: [ self initSimStackForFramelessMethod: initialPC ].
 	compilationResult := self compileMethodBody.
-	compilationResult ~= 0 ifTrue: [ ^ compilationResult ].
+	"compilationResult ~= 0 ifTrue: [ "^ compilationResult" ]".
 	
 	"non default domain"
-	isDefaultDomain := false.
+	"isDefaultDomain := false.
 	jumpNonDefault jmpTarget: self Label.
 	(result := self compilePrimitive) < 0 ifTrue: [ ^ result ].
 	self compileFrameBuild.
-	"Non default domain is always frameful,
-	because hooks are compiled as message sends to the domain"
+	""Non default domain is always frameful,
+	because hooks are compiled as message sends to the domain""
 	self initSimStackForFramefulMethod: initialPC.
-	^ self compileMethodBody
+	^ self compileMethodBody"
 ]
 
 { #category : 'compile abstract instructions' }
