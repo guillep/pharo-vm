@@ -990,8 +990,8 @@ StackToRegisterMappingCogit >> compileEntireMethod [
 	The first path executes normally on the default domain.
 	The second path is compiled into hooks calling to the domain."
 
-	self CmpCq: 0 R: TempReg.
-	jumpNonDefault := self JumpZero: 0.
+	"self CmpCq: 0 R: TempReg.
+	jumpNonDefault := self JumpZero: 0."
 
 	"Default domain"
 	isDefaultDomain := true.
