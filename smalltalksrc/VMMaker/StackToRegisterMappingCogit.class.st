@@ -987,14 +987,9 @@ StackToRegisterMappingCogit >> compileFrameBuild [
 	"Build a frame for a CogMethod activation.  See CoInterpreter class>>initializeFrameIndices.
 	 Override to push the register receiver and register arguments, if any."
 
-	useTwoPaths ifTrue: [
-		self compileTwoPathFrameBuild.
-		^ self ].
 	needsFrame ifFalse: [
-		useTwoPaths ifTrue: [ self compileTwoPathFramelessInit ].
 		self initSimStackForFramelessMethod: initialPC.
 		^ self ].
-	self deny: useTwoPaths.
 	self genPushRegisterArgs.
 	super compileFrameBuild.
 	self initSimStackForFramefulMethod: initialPC
@@ -1010,10 +1005,6 @@ StackToRegisterMappingCogit >> compileFullBlockFramelessEntry: numCopied [
 
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileFullBlockMethodFrameBuild: numCopied [
-	useTwoPaths ifTrue: 
-		[ "method with only inst var store, we compile only slow path for now" 
-		 useTwoPaths := false.
-		 needsFrame := true ].
 	needsFrame ifFalse:
 		[self assert: numCopied = 0.
 		 self compileFullBlockFramelessEntry: numCopied.
@@ -2891,7 +2882,7 @@ StackToRegisterMappingCogit >> genUpArrowReturn [
 		self CallRT: ceNonLocalReturnTrampoline.
 		self annotateBytecode: self Label.
 		^ 0 ].
-	(needsFrame and: [ useTwoPaths not ])
+	needsFrame
 		ifTrue: [
 			self MoveR: FPReg R: SPReg.
 			self PopR: FPReg.
