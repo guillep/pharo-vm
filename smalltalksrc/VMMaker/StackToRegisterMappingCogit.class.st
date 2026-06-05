@@ -136,7 +136,6 @@ Class {
 		'realCECallCogCodePopReceiverArg0Regs',
 		'realCECallCogCodePopReceiverArg1Arg0Regs',
 		'deadCode',
-		'useTwoPaths',
 		'counterIndex'
 	],
 	#pools : [
@@ -985,12 +984,10 @@ StackToRegisterMappingCogit >> compileEntireMethod [
 StackToRegisterMappingCogit >> compileFrameBuild [
 	"Build a frame for a CogMethod activation.  See CoInterpreter class>>initializeFrameIndices.
 	 Override to push the register receiver and register arguments, if any."
-	needsFrame ifFalse:
-		[useTwoPaths ifTrue: 
-			[self compileTwoPathFramelessInit].
-		 self initSimStackForFramelessMethod: initialPC.
-		 ^self].
-	self deny: useTwoPaths.
+
+	needsFrame ifFalse: [
+			self initSimStackForFramelessMethod: initialPC.
+			^ self ].
 	self genPushRegisterArgs.
 	super compileFrameBuild.
 	self initSimStackForFramefulMethod: initialPC
@@ -1006,9 +1003,6 @@ StackToRegisterMappingCogit >> compileFullBlockFramelessEntry: numCopied [
 
 { #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileFullBlockMethodFrameBuild: numCopied [
-	useTwoPaths ifTrue: 
-		[ "method with only inst var store, we compile only slow path for now" 
-		 useTwoPaths := false ].
 	needsFrame ifFalse:
 		[self assert: numCopied = 0.
 		 self compileFullBlockFramelessEntry: numCopied.
@@ -1016,23 +1010,6 @@ StackToRegisterMappingCogit >> compileFullBlockMethodFrameBuild: numCopied [
 		 ^self].
 	super compileFullBlockMethodFrameBuild: numCopied.
 	self initSimStackForFramefulMethod: initialPC
-]
-
-{ #category : 'compile abstract instructions' }
-StackToRegisterMappingCogit >> compileTwoPathFramelessInit [
-	"We are in a frameless method with at least two inst var stores. We compile two paths,
-	 one where the object is in new space, and one where it isn't. At the beginning 
-	 of the method, we take one path or the other depending on the receiver being in newSpace."
-	| jumpOld |
-	self deny: needsFrame.
-	self assert: useTwoPaths.
-	jumpOld := objectRepresentation genJumpInOldSpace: ReceiverResultReg.
-	"first path. The receiver is young"
-	self initSimStackForFramelessMethod: initialPC.
-	self compileMethodBody.
-	"second path. The receiver is old"
-	useTwoPaths := false. "reset because it impacts inst var store compilation"
-	jumpOld jmpTarget: self Label
 ]
 
 { #category : 'simulation only' }
@@ -2767,18 +2744,18 @@ StackToRegisterMappingCogit >> genStorePop: popBoolean ReceiverVariable: slotInd
 
 { #category : 'bytecode generator stores' }
 StackToRegisterMappingCogit >> genStorePop: popBoolean ReceiverVariable: slotIndex needsStoreCheck: needsStoreCheck needsImmutabilityCheck: needsImmCheck [
+
 	<inline: false>
 	self ssFlushUpThroughReceiverVariable: slotIndex.
 	self ensureReceiverResultRegContainsSelf.
 	"In two path compilation the receiver is young AND mutable, hence no store check nor immutability check is needed"
-	^self 
-		genGenericStorePop: popBoolean 
-		slotIndex: slotIndex 
-		destReg: ReceiverResultReg 
-		needsStoreCheck: (useTwoPaths not and: [needsStoreCheck])
-		needsRestoreRcvr: true "ReceiverResultReg is kept live with the receiver across the operation"
-		needsImmutabilityCheck: (needsImmCheck and: [useTwoPaths not])
-		
+	^ self
+		  genGenericStorePop: popBoolean
+		  slotIndex: slotIndex
+		  destReg: ReceiverResultReg
+		  needsStoreCheck: needsStoreCheck
+		  needsRestoreRcvr: true
+		  needsImmutabilityCheck: needsImmCheck "ReceiverResultReg is kept live with the receiver across the operation"
 ]
 
 { #category : 'bytecode generator stores' }
@@ -3892,8 +3869,8 @@ StackToRegisterMappingCogit >> scanMethod [
 		- what are the targets of any backward branches"
 
 	<var: #descriptor type: #'BytecodeDescriptor *'>
-	| latestContinuation nExts descriptor pc distance targetPC framelessStackDelta seenInstVarStore |
-	needsFrame := useTwoPaths := seenInstVarStore := false.
+	| latestContinuation nExts descriptor pc distance targetPC framelessStackDelta |
+	needsFrame := false.
 	self maybeInitNumFixups.
 	self maybeInitNumCounters.
 	prevBCDescriptor := nil.
@@ -3918,17 +3895,10 @@ StackToRegisterMappingCogit >> scanMethod [
 						 self
 							 perform: descriptor needsFrameFunction
 							 with: framelessStackDelta ])
-						ifTrue: [ "With immutability we win simply by avoiding a frame build if the receiver is young and not immutable."
-								needsFrame := true.
-								useTwoPaths := false ]
+						ifTrue: [ needsFrame := true ]
 						ifFalse: [
-								framelessStackDelta := framelessStackDelta
-								                       + descriptor stackDelta.
-								"Without immutability we win if there are two or more stores and the receiver is new."
-								descriptor is1ByteInstVarStore ifTrue: [
-										seenInstVarStore
-											ifTrue: [ useTwoPaths := false ]
-											ifFalse: [ seenInstVarStore := true ] ] ] ].
+						framelessStackDelta := framelessStackDelta
+						                       + descriptor stackDelta ] ].
 
 			descriptor isBranch ifTrue: [
 					distance := self
@@ -4621,12 +4591,6 @@ StackToRegisterMappingCogit >> updateSimSpillBase [
 		[:i|
 		self assert: (self simStackAt: i) spilled == true].
 	self assert: (simSpillBase > simStackPtr or: [(self simStackAt: simSpillBase) spilled == false])
-]
-
-{ #category : 'accessing' }
-StackToRegisterMappingCogit >> useTwoPaths: aBoolean [ 
-	<doNotGenerate>
-	useTwoPaths := aBoolean
 ]
 
 { #category : 'span functions' }
