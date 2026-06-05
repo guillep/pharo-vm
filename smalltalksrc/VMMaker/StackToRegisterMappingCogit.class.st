@@ -3927,7 +3927,7 @@ StackToRegisterMappingCogit >> scanMethod [
 								"Without immutability we win if there are two or more stores and the receiver is new."
 								descriptor is1ByteInstVarStore ifTrue: [
 										seenInstVarStore
-											ifTrue: [ useTwoPaths := true ]
+											ifTrue: [ useTwoPaths := false ]
 											ifFalse: [ seenInstVarStore := true ] ] ] ].
 
 			descriptor isBranch ifTrue: [
