@@ -1181,8 +1181,8 @@ StackInterpreter class >> initializePrimitiveTable [
 		(160 primitiveAdoptInstance)
 		(161 primitiveSetOrHasIdentityHash)
 		(162 primitiveFail)			"reserved for immutablity primitives"
-		(163 primitiveGetImmutability)
-		(164 primitiveSetImmutability)	
+		(163 primitiveFail)
+		(164 primitiveFail)	
 		(165 primitiveIntegerAt)		"hacked in here for now"
 		(166 primitiveIntegerAtPut)
 		(167 primitiveYield)
@@ -1732,18 +1732,15 @@ StackInterpreter class >> wantsLabels [
 
 { #category : 'translation' }
 StackInterpreter class >> writeVMHeaderTo: aStream bytesPerWord: bytesPerWord generator: aCCodeGenerator [
-	super writeVMHeaderTo: aStream bytesPerWord: bytesPerWord generator: aCCodeGenerator.
-	SistaVM ifTrue:
-		[aCCodeGenerator putDefineOf: #SistaVM as: 1 on: aStream].
-	IMMUTABILITY ifTrue:
-		[aCCodeGenerator
-			putConditionalDefineOf: #IMMUTABILITY
-			as: 1
-			comment: 'Allow this to be overridden on the compiler command line'
-			on: aStream].
-	(SistaVM or: [ IMMUTABILITY ]) ifTrue:
-		[aStream cr].
-	aCCodeGenerator putDefineOf: #STACKVM as: 1 on: aStream.
+
+	super
+		writeVMHeaderTo: aStream
+		bytesPerWord: bytesPerWord
+		generator: aCCodeGenerator.
+	SistaVM ifTrue: [
+			aCCodeGenerator putDefineOf: #SistaVM as: 1 on: aStream.
+			aStream cr ].
+	aCCodeGenerator putDefineOf: #STACKVM as: 1 on: aStream
 ]
 
 { #category : 'simulation' }
@@ -2839,9 +2836,7 @@ StackInterpreter >> bytecodePrimAtPut [
 	value := self stackTop.
 	index := self stackValue: 1.
 	rcvr := self stackValue: 2.
-	self cppIf: IMMUTABILITY 
-		ifTrue: [ correctRcvr := objectMemory isOopMutable: rcvr ]
-		ifFalse: [ correctRcvr := objectMemory isNonImmediate: rcvr ].
+	correctRcvr := objectMemory isNonImmediate: rcvr.
 	(correctRcvr
 	 and: [objectMemory isIntegerObject: index]) ifTrue:
 		[atIx := (rcvr bitAnd: AtCacheMask) + AtPutBase.  "Index into atPutCache"
@@ -3698,18 +3693,6 @@ StackInterpreter >> canContextSwitchIfActivating: theMethod header: methodHeader
 			  or: [primitiveIndex = 167]]] "primitiveYield"
 ]
 
-{ #category : 'stack bytecodes' }
-StackInterpreter >> cannotAssign: resultObj to: targetObj withIndex: index [
-	<option: #IMMUTABILITY>
-	<inline: true> "because of use of normalSend..."
-	self push: targetObj.
-	self push: resultObj.
-	self push: (objectMemory integerObjectOf: index + 1).
-	messageSelector := objectMemory splObj: SelectorAttemptToAssign.
-	argumentCount := 2.
-	^ self normalSend
-]
-
 { #category : 'indexing primitive support' }
 StackInterpreter >> characterForAscii: ascii [  "Above ObjectMemory, arg must lie in range 0-255!"
 	<inline: true>
@@ -4318,8 +4301,6 @@ StackInterpreter >> commonAtPut: stringy [
 		or: [ argumentCount > 2
 				and: [ "e.g. object:basicAt:put:" objectMemory isForwarded: rcvr ] ])
 		ifTrue: [ ^ self primitiveFailFor: PrimErrBadArgument ].
-	(objectMemory isObjImmutable: rcvr)
-		ifTrue: [ ^ self primitiveFailFor: PrimErrNoModification ].
 	index := objectMemory integerValueOf: index.
 	stringy
 		ifTrue: [ | charToPut |
@@ -6889,16 +6870,13 @@ StackInterpreter >> getCogMethodCount [
 
 { #category : 'internal interpreter access' }
 StackInterpreter >> getCogVMFeatureFlags [
-
 	"Answer an array of flags indicating various optional features of the Cog VM.
 	 Bit 0: unused
 	 Bit 1: supports immutablity (IMMUTABILITY)
 	 Bit 2: suffers from a UNIX setitimer signal-based heartbeat"
 
-	^ objectMemory integerObjectOf: (IMMUTABILITY
-			   ifTrue: [ 2 ]
-			   ifFalse: [ 0 ])
-		  + (self cppIf: #ITIMER_HEARTBEAT ifTrue: [ 4 ] ifFalse: [ 0 ])
+	^ objectMemory integerObjectOf:
+		  (self cppIf: #ITIMER_HEARTBEAT ifTrue: [ 4 ] ifFalse: [ 0 ])
 ]
 
 { #category : 'internal interpreter access' }
@@ -7688,7 +7666,6 @@ StackInterpreter >> instVar: index ofContext: aMarriedContext put: anOop [
 	 assigning the sender.  We could also consider optimizing assigning the IP but
 	 typically that is followed by an assignment to the stack pointer and we can't
 	 efficiently assign the stack pointer because it involves moving frames around."
-	self deny: (objectMemory isObjImmutable: aMarriedContext).
 	self writeBackHeadFramePointers.
 	(self isStillMarriedContext: aMarriedContext) ifFalse: [
 		objectMemory
@@ -9294,8 +9271,6 @@ StackInterpreter >> mappedImmcheckDataAtPut: primIndex [
 	self
 		pop: 2;
 		stackTopPut: result.
-	(objectMemory isImmutable: rec) ifTrue: [ 
-		^ self cannotAssign: result to: rec withIndex: argIntAdjusted ].
 
 	primIndex caseOf: { 
 			([ 154 ] -> [ 

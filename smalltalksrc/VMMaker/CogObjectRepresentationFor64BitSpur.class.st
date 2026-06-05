@@ -870,7 +870,7 @@ CogObjectRepresentationFor64BitSpur >> genPrimitiveAtPutSigned: signedVersion [
 	 then generate signed accesses to the bits classes (a la 164 & 165).  If signedVersion is false,
 	 generate unsigned accesses (a la 60, 61, 63 & 64)."
 	| formatReg nSlotsOrBytesReg methodInBounds
-	  jumpImmediate jumpBadIndex jumpImmutable jumpNotIndexablePointers jumpNotIndexableBits
+	  jumpImmediate jumpBadIndex jumpNotIndexablePointers jumpNotIndexableBits
 	  jumpIsContext jumpIsCompiledMethod jumpIsBytes jumpIsShorts jumpIsWords jumpHasFixedFields
 	  jumpArrayOutOfBounds jumpFixedFieldsOutOfBounds
 	  jumpWordsOutOfBounds jumpShortsOutOfBounds jumpBytesOutOfBounds
@@ -889,16 +889,9 @@ CogObjectRepresentationFor64BitSpur >> genPrimitiveAtPutSigned: signedVersion [
 	cogit SubCq: 1 R: Arg0Reg. "1-rel => 0-rel"
 
 	"formatReg := self formatOf: ReceiverResultReg"
-	self cppIf: IMMUTABILITY
-		ifTrue:
-		[ self genGetFormatOf: ReceiverResultReg
+	self genGetFormatOf: ReceiverResultReg
 			into: (formatReg := SendNumArgsReg)
-			leastSignificantHalfOfBaseHeaderIntoScratch: TempReg.
-		jumpImmutable := self genJumpBaseHeaderImmutable: TempReg ]
-		ifFalse: 
-		[ self genGetFormatOf: ReceiverResultReg
-			into: (formatReg := SendNumArgsReg)
-			leastSignificantHalfOfBaseHeaderIntoScratch: NoReg ].
+			leastSignificantHalfOfBaseHeaderIntoScratch: NoReg.
 
 	self genGetNumSlotsOf: ReceiverResultReg into: nSlotsOrBytesReg.
 
@@ -1115,8 +1108,6 @@ CogObjectRepresentationFor64BitSpur >> genPrimitiveAtPutSigned: signedVersion [
 	signedVersion
 		ifTrue: [jumpDoubleWordsOutOfRange jmpTarget: jumpIsContext getJmpTarget]
 		ifFalse: [jumpNegative jmpTarget: jumpIsContext getJmpTarget].
-	self cppIf: IMMUTABILITY
-		ifTrue: [jumpImmutable jmpTarget: jumpIsContext getJmpTarget].
 
 	cogit AddCq: 1 R: Arg0Reg. "0-rel => 1-rel"
 	self genConvertIntegerToSmallIntegerInReg: Arg0Reg.
@@ -2022,7 +2013,7 @@ CogObjectRepresentationFor64BitSpur >> genPrimitiveStringAt [
 
 { #category : 'primitive generators' }
 CogObjectRepresentationFor64BitSpur >> genPrimitiveStringAtPut [
-	| formatReg jumpBadIndex jumpBadArg jumpImmutable
+	| formatReg jumpBadIndex jumpBadArg
 	  jumpIsBytes jumpIsShorts jumpNotString jumpIsCompiledMethod
 	  jumpBytesOutOfRange jumpShortsOutOfRange jumpWordsOutOfRange
 	  jumpBytesOutOfBounds jumpWordsOutOfBounds jumpShortsOutOfBounds |
@@ -2047,16 +2038,9 @@ CogObjectRepresentationFor64BitSpur >> genPrimitiveStringAtPut [
 	cogit SubCq: 1 R: Arg0Reg. "1-rel => 0-rel"
 
 	"formatReg := self formatOf: ReceiverResultReg"
-	self cppIf: IMMUTABILITY
-		ifTrue:
-		[ self genGetFormatOf: ReceiverResultReg
+	self genGetFormatOf: ReceiverResultReg
 			into: (formatReg := SendNumArgsReg)
-			leastSignificantHalfOfBaseHeaderIntoScratch: TempReg.
-		jumpImmutable := self genJumpBaseHeaderImmutable: TempReg ]
-		ifFalse: 
-		[ self genGetFormatOf: ReceiverResultReg
-			into: (formatReg := SendNumArgsReg)
-			leastSignificantHalfOfBaseHeaderIntoScratch: NoReg ].
+			leastSignificantHalfOfBaseHeaderIntoScratch: NoReg.
 
 	self genGetNumSlotsOf: ReceiverResultReg into: ClassReg.
 
@@ -2129,9 +2113,6 @@ CogObjectRepresentationFor64BitSpur >> genPrimitiveStringAtPut [
 	(jumpBytesOutOfBounds jmpTarget:
 	(jumpShortsOutOfBounds jmpTarget:
 	(jumpWordsOutOfBounds jmpTarget: cogit Label))))))).
-
-	self cppIf: IMMUTABILITY
-		ifTrue: [jumpImmutable jmpTarget: jumpNotString getJmpTarget].
 
 	cogit AddCq: 1 R: Arg0Reg. "0-rel => 1-rel"
 	self genConvertIntegerToSmallIntegerInReg: Arg0Reg.

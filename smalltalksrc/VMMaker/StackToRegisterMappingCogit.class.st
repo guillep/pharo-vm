@@ -328,7 +328,7 @@ StackToRegisterMappingCogit class >> initializeBytecodeTableForSistaV1 [
 													v3:ShortForward:Branch:Distance:)
 		(1 192 199 genShortJumpIfFalse			branch isBranchFalse isMapped "because of mustBeBoolean"
 													v3:ShortForward:Branch:Distance:)
-		(1 200 207 genStoreAndPopReceiverVariableBytecode isInstVarRef is1ByteInstVarStore isMappedIfImmutability needsFrameIfImmutability: -1)
+		(1 200 207 genStoreAndPopReceiverVariableBytecode isInstVarRef is1ByteInstVarStore isMappedIfImmutability needsFrameNever: -1)
 		
 		(1 208 215 genStoreAndPopTemporaryVariableBytecode)
 
@@ -985,10 +985,6 @@ StackToRegisterMappingCogit >> compileEntireMethod [
 StackToRegisterMappingCogit >> compileFrameBuild [
 	"Build a frame for a CogMethod activation.  See CoInterpreter class>>initializeFrameIndices.
 	 Override to push the register receiver and register arguments, if any."
-	self cppIf: IMMUTABILITY ifTrue: 
-		[useTwoPaths ifTrue: 
-			[self compileTwoPathFrameBuild.
-		 	^self]].
 	needsFrame ifFalse:
 		[useTwoPaths ifTrue: 
 			[self compileTwoPathFramelessInit].
@@ -1012,8 +1008,7 @@ StackToRegisterMappingCogit >> compileFullBlockFramelessEntry: numCopied [
 StackToRegisterMappingCogit >> compileFullBlockMethodFrameBuild: numCopied [
 	useTwoPaths ifTrue: 
 		[ "method with only inst var store, we compile only slow path for now" 
-		 useTwoPaths := false.
-		 self cppIf: IMMUTABILITY ifTrue: [ needsFrame := true ] ].
+		 useTwoPaths := false ].
 	needsFrame ifFalse:
 		[self assert: numCopied = 0.
 		 self compileFullBlockFramelessEntry: numCopied.
@@ -1024,39 +1019,11 @@ StackToRegisterMappingCogit >> compileFullBlockMethodFrameBuild: numCopied [
 ]
 
 { #category : 'compile abstract instructions' }
-StackToRegisterMappingCogit >> compileTwoPathFrameBuild [
-	"We are in a method where the frame is needed *only* for instance variable store, typically a setter method.
-	This case has 20% overhead with Immutability compared to setter without immutability because of the stack
-	frame creation. We compile two path, one where the object is immutable, one where it isn't. At the beginning 
-	of the frame build, we take one path or the other depending on the receiver mutability.
-	
-	Note: this specific case happens only where there are only instance variabel stores. We could do something
-	similar for literal variable stores, but we don't as it's too uncommon."
-	<option: #IMMUTABILITY>
-	| jumpImmutable jumpOld |
-	self assert: useTwoPaths.
-	jumpImmutable := objectRepresentation genJumpImmutable: ReceiverResultReg scratchReg: TempReg.
-	jumpOld := objectRepresentation genJumpInOldSpace: ReceiverResultReg.
-	"first path. The receiver is mutable"
-	self assert: needsFrame not.
-	self initSimStackForFramelessMethod: initialPC.
-	self compileMethodBody.
-	"second path. The receiver is mutable"
-	useTwoPaths := false. "reset because it impacts inst var store compilation"
-	needsFrame := true.
-	jumpOld jmpTarget: (jumpImmutable jmpTarget: self Label).
-	self genPushRegisterArgs.
-	super compileFrameBuild.
-	self initSimStackForFramefulMethod: initialPC
-]
-
-{ #category : 'compile abstract instructions' }
 StackToRegisterMappingCogit >> compileTwoPathFramelessInit [
 	"We are in a frameless method with at least two inst var stores. We compile two paths,
 	 one where the object is in new space, and one where it isn't. At the beginning 
 	 of the method, we take one path or the other depending on the receiver being in newSpace."
 	| jumpOld |
-	self deny: IMMUTABILITY.
 	self deny: needsFrame.
 	self assert: useTwoPaths.
 	jumpOld := objectRepresentation genJumpInOldSpace: ReceiverResultReg.
@@ -1072,45 +1039,6 @@ StackToRegisterMappingCogit >> compileTwoPathFramelessInit [
 StackToRegisterMappingCogit >> debugStackPointerFor: bcpc [
 	<doNotGenerate>
 	^(debugStackPointers at: bcpc) + (needsFrame ifTrue: [0] ifFalse: [1])
-]
-
-{ #category : 'bytecode generators' }
-StackToRegisterMappingCogit >> doubleExtendedDoAnythingBytecode [
-	"Replaces the Blue Book double-extended send [132], in which the first byte was wasted on 8 bits of argument count. 
-	Here we use 3 bits for the operation sub-type (opType),  and the remaining 5 bits for argument count where needed. 
-	The last byte give access to 256 instVars or literals. 
-	See also secondExtendedSendBytecode"
-	| opType |
-	opType := byte1 >> 5.
-	opType = 0 ifTrue:
-		[^self genSend: byte2 numArgs: (byte1 bitAnd: 31)].
-	opType = 1 ifTrue:
-		[^self genSendSuper: byte2 numArgs: (byte1 bitAnd: 31)].
-	"We need a map entry for this bytecode for correct parsing.
-	 The sends will get an IsSend entry anyway.  The other cases need a fake one."
-	opType caseOf: {
-			[2]	->	[(coInterpreter isReadMediatedContextInstVarIndex: byte2)
-						ifTrue: [self genPushMaybeContextReceiverVariable: byte2]
-						ifFalse: [self genPushReceiverVariable: byte2.
-								self annotateInstructionForBytecode.
-								^0]].
-			[3]	->	[self genPushLiteralIndex: byte2.
-					 self annotateInstructionForBytecode.
-					 ^0].
-			[4]	->	[self genPushLiteralVariable: byte2.].
-			[7]	->	[self genStorePop: false LiteralVariable: byte2.
-					self cppIf: IMMUTABILITY ifTrue: [ "genStorePop:LiteralVariable: annotates; don't annotate twice" ^0 ] ] }
-		otherwise: "5 & 6"
-			[(coInterpreter isWriteMediatedContextInstVarIndex: byte2)
-				ifTrue: [self genStorePop: opType = 6 MaybeContextReceiverVariable: byte2]
-				ifFalse: [self genStorePop: opType = 6 ReceiverVariable: byte2].
-			self cppIf: IMMUTABILITY ifTrue: [ "genStorePop:...ReceiverVariable: annotate; don't annotate twice" ^0 ]].
-	"We need a map entry for this bytecode for correct parsing (if the method builds a frame)."
-	self assert: needsFrame.
-	"genPushMaybeContextInstVar, pushLitVar, store & storePop all generate code"
-	self assert: self prevInstIsPCAnnotated not.
-	self annotateBytecode: self Label.
-	^0
 ]
 
 { #category : 'bytecode generators' }
@@ -1543,42 +1471,6 @@ StackToRegisterMappingCogit >> genExtPushRemoteTempOrInstVarLongBytecode [
 				ifFalse: [ self genPushRemoteInstVar: index inObjectAt: byte2 - coInterpreter remoteIsInstVarAccess ] ]
 ]
 
-{ #category : 'bytecode generators' }
-StackToRegisterMappingCogit >> genExtStorePopRemoteTempOrInstVarLongBytecodePopBoolean: boolean [
-	| index maybeContext needsStoreCheck needsImmCheck |
-	needsStoreCheck := self sistaNeedsStoreCheck.
-	maybeContext := self extBSpecifiesMaybeContext.
-	needsImmCheck := self extBSpecifiesImmCheck.
-	extB := 0.
-	numExtB := 0.
-	(byte2 noMask: coInterpreter remoteIsInstVarAccess)
-		ifTrue: 
-			[ self 
-				genStorePop: boolean 
-				RemoteTemp: byte1 
-				At: byte2 
-				needsStoreCheck: needsStoreCheck.
-			self cppIf: IMMUTABILITY ifTrue: [ self annotateBytecode: self Label ] ]
-		ifFalse: 
-			[index := byte1 + (extA << 8).
-			 extA := 0.
-			 ((coInterpreter isWriteMediatedContextInstVarIndex: index) and: [ maybeContext ])
-				ifTrue: [self 
-						genStorePop: boolean 
-						MaybeContextRemoteInstVar: index 
-						ofObjectAt: byte2 - coInterpreter remoteIsInstVarAccess 
-						needsStoreCheck: needsStoreCheck
-						needsImmutabilityCheck: needsImmCheck ]
-				ifFalse: [self 
-						genStorePop: boolean 
-						RemoteInstVar: index 
-						ofObjectAt: byte2 - coInterpreter remoteIsInstVarAccess 
-						needsStoreCheck: needsStoreCheck
-						needsImmutabilityCheck: needsImmCheck ].
-			self cppIf: IMMUTABILITY ifTrue: [ needsImmCheck ifFalse: [self annotateBytecode: self Label ] ] ].
-	^ 0
-]
-
 { #category : 'trampoline support' }
 StackToRegisterMappingCogit >> genExternalizePointersForPrimitiveCall [
 	" Override to push the register receiver and register arguments, if any."
@@ -1682,9 +1574,6 @@ StackToRegisterMappingCogit >> genGenericStorePop: popBoolean MaybeContextSlotIn
 	- needRestoreRcvr (ensures the recevier is live across the store)
 	- needsImmCheck (do the call-back if the receiver is immutable)"
 	<inline: true>
-	<var: #mutableJump type: #'AbstractInstruction *'>
-	<var: #immutabilityFailure type: #'AbstractInstruction *'>
-	| immutabilityFailure mutableJump |
 	"The reason we need a frame here is that assigning to an inst var of a context may
 	 involve wholesale reorganization of stack pages, and the only way to preserve the
 	 execution state of an activation in that case is if it has a frame."
@@ -1702,17 +1591,6 @@ StackToRegisterMappingCogit >> genGenericStorePop: popBoolean MaybeContextSlotIn
 	This guarantees that the stack is all spilled when jumping to the potential trampolines"
 	self ssFlushStack.
 
-	self 
-		cppIf: IMMUTABILITY
-		ifTrue:
-			[needsImmCheck
-				ifTrue: 
-					[mutableJump := objectRepresentation genJumpMutable: ReceiverResultReg scratchReg: TempReg.
-					 objectRepresentation genStoreTrampolineCall: slotIndex.
-					 needsRestoreReceiver ifTrue: [ self putSelfInReceiverResultReg ].
-					 immutabilityFailure := self Jump: 0.
-					 mutableJump jmpTarget: self Label.]].
-
 	objectRepresentation
 		genLoadSlot: SenderIndex
 		sourceReg: ReceiverResultReg
@@ -1720,10 +1598,7 @@ StackToRegisterMappingCogit >> genGenericStorePop: popBoolean MaybeContextSlotIn
 
 	self MoveCq: slotIndex R: SendNumArgsReg.
 	self CallRT: ceStoreContextInstVarTrampoline.
-	self 
-		cppIf: IMMUTABILITY
-		ifTrue:
-			[needsImmCheck ifTrue:[immutabilityFailure jmpTarget: self Label]].
+
 	^0
 ]
 
@@ -1741,19 +1616,6 @@ StackToRegisterMappingCogit >> genGenericStorePop: popBoolean slotIndex: slotInd
 		If not IMMUTABILITY then ReceiverResultReg will be preserved by the ceStoreCheck trampoline."
 	| topReg |
 	<inline: true>
-	self cppIf: IMMUTABILITY ifTrue:
-		[needsImmCheck ifTrue: 
-			[self ssAllocateRequiredReg: ClassReg upThrough: simStackPtr - 1. "If already classReg don't spill it"
-			 "we replace the top value for the flush"
-			 self ssStoreAndReplacePop: popBoolean toReg: ClassReg.
-			 self ssFlushStack.
-			 ^objectRepresentation 
-				genStoreWithImmutabilityCheckSourceReg: ClassReg 
-				slotIndex: slotIndex 
-				destReg: destReg 
-				scratchReg: TempReg 
-				needsStoreCheck: needsStoreCheck 
-				needRestoreRcvr: needsRestoreReceiver]].
 	topReg := self 
 				allocateRegForStackEntryAt: 0 
 				notConflictingWith: (self registerMaskFor: destReg). 
@@ -2494,35 +2356,6 @@ StackToRegisterMappingCogit >> genSendTrampolineFor: aRoutine numArgs: numArgs c
 ]
 
 { #category : 'bytecode generators' }
-StackToRegisterMappingCogit >> genSistaExtStoreAndPopReceiverVariableBytecodePopBoolean: popBoolean [
-	<inline: true>
-	| index needsStoreCheck needsImmCheck maybeContext result |
-	needsStoreCheck := self sistaNeedsStoreCheck.
-	needsImmCheck := self extBSpecifiesImmCheck.
-	"Long form and short form exist for popInto. Only the long form exists for store.
-	Store have an explicit flag to mark context accessing, while popInto context accessing are done through the long form,
-	hence generate the context form if the flag is set or if this is a popInto."
-	maybeContext := popBoolean or: [self extBSpecifiesMaybeContext].
-	extB := 0.
-	numExtB := 0.
-	index := byte1 + (extA << 8).
-	extA := 0.
-	result := ((coInterpreter isWriteMediatedContextInstVarIndex: index) and: [maybeContext])
-		ifTrue: [self 
-				genStorePop: popBoolean 
-				MaybeContextReceiverVariable: index 
-				needsStoreCheck: needsStoreCheck 
-				needsImmutabilityCheck: needsImmCheck]
-		ifFalse: [self 
-				 genStorePop: popBoolean 
-				 ReceiverVariable: index 
-				 needsStoreCheck: needsStoreCheck 
-				 needsImmutabilityCheck: needsImmCheck].
-	self cppIf: IMMUTABILITY ifTrue: [ needsImmCheck ifFalse: [self annotateBytecode: self Label ] ].
-	^result
-]
-
-{ #category : 'bytecode generators' }
 StackToRegisterMappingCogit >> genSistaExtStoreLiteralVariableBytecodePopBoolean: boolean [
 	<inline: true>
 	| index needsStoreCheck needsImmCheck |
@@ -3054,28 +2887,29 @@ StackToRegisterMappingCogit >> genUpArrowReturn [
 				ret pc in LR.
 	 A fully framed activation is described in CoInterpreter class>initializeFrameIndices.
 	 Return pops receiver and arguments off the stack.  Callee pushes the result."
+
 	deadCode := true. "can't fall through"
-	inBlock > 0 ifTrue:
-		[self assert: needsFrame.
-		 self ssFlushStack.
-		 self CallRT: ceNonLocalReturnTrampoline.
-		 self annotateBytecode: self Label.
-		 ^0].
-	(self cppIf: IMMUTABILITY ifTrue: [needsFrame and: [useTwoPaths not]] ifFalse: [needsFrame])
-		ifTrue:
-			[ self MoveR: FPReg R: SPReg.
-			 self PopR: FPReg.
-			 backEnd hasLinkRegister ifTrue:
-				[self PopR: LinkReg].
-			 self RetN: methodOrBlockNumArgs + 1 * objectMemory wordSize]
-		ifFalse:
-			[self RetN: ((methodOrBlockNumArgs > self numRegArgs
-						"A method with an interpreter prim will push its register args for the prim.  If the failure
-						 body is frameless the args must still be popped, see e.g. Behavior>>nextInstance."
-						or: [regArgsHaveBeenPushed])
-							ifTrue: [methodOrBlockNumArgs + 1 * objectMemory wordSize]
-							ifFalse: [0])].
-	^0
+	inBlock > 0 ifTrue: [
+			self assert: needsFrame.
+			self ssFlushStack.
+			self CallRT: ceNonLocalReturnTrampoline.
+			self annotateBytecode: self Label.
+			^ 0 ].
+	needsFrame
+		ifTrue: [
+				self MoveR: FPReg R: SPReg.
+				self PopR: FPReg.
+				backEnd hasLinkRegister ifTrue: [ self PopR: LinkReg ].
+				self RetN: methodOrBlockNumArgs + 1 * objectMemory wordSize ]
+		ifFalse: [
+				self RetN:
+					((methodOrBlockNumArgs > self numRegArgs or: [
+						  regArgsHaveBeenPushed ])
+						 ifTrue: [ methodOrBlockNumArgs + 1 * objectMemory wordSize ]
+						 ifFalse: [ 0 ])
+				"A method with an interpreter prim will push its register args for the prim.  If the failure
+						 body is frameless the args must still be popped, see e.g. Behavior>>nextInstance." ].
+	^ 0
 ]
 
 { #category : 'initialization' }
@@ -4056,69 +3890,76 @@ StackToRegisterMappingCogit >> scanMethod [
 		- what the last bytecode is; extra bytes at the end of a method are used to encode things like source pointers or temp names
 		- if the method needs a frame or not
 		- what are the targets of any backward branches"
-	| latestContinuation nExts descriptor pc distance targetPC framelessStackDelta seenInstVarStore |
+
 	<var: #descriptor type: #'BytecodeDescriptor *'>
+	| latestContinuation nExts descriptor pc distance targetPC framelessStackDelta seenInstVarStore |
 	needsFrame := useTwoPaths := seenInstVarStore := false.
 	self maybeInitNumFixups.
 	self maybeInitNumCounters.
 	prevBCDescriptor := nil.
-	(primitiveIndex > 0
-	 and: [coInterpreter isQuickPrimitiveIndex: primitiveIndex]) ifTrue:
-		[^0].
+	(primitiveIndex > 0 and: [
+		 coInterpreter isQuickPrimitiveIndex: primitiveIndex ]) ifTrue: [
+		^ 0 ].
 	pc := latestContinuation := initialPC.
 	framelessStackDelta := nExts := extA := numExtB := extB := 0.
-	[pc <= endPC] whileTrue:
-		[byte0 := objectMemory fetchByte: pc ofObject: methodObj.
-		 descriptor := self generatorAt: byte0.
-		 descriptor isExtension ifTrue:
-			[descriptor opcode = Nop ifTrue: "unknown bytecode tag; see Cogit class>>#generatorTableFrom:"
-				[^EncounteredUnknownBytecode].
-			 self loadSubsequentBytesForDescriptor: descriptor at: pc.
-			 self perform: descriptor generator].
-		 (descriptor isReturn
-		  and: [pc >= latestContinuation]) ifTrue:
-			[endPC := pc].
-		
-		  needsFrame ifFalse:
-			[(descriptor needsFrameFunction isNil
-			  or: [self perform: descriptor needsFrameFunction with: framelessStackDelta])
-					ifTrue:
-						["With immutability we win simply by avoiding a frame build if the receiver is young and not immutable."
-						 self cppIf: IMMUTABILITY
-							ifTrue: [descriptor is1ByteInstVarStore
-									ifTrue: [useTwoPaths := true]
-									ifFalse: [needsFrame := true. useTwoPaths := false]]
-							ifFalse: [needsFrame := true. useTwoPaths := false]]
-					ifFalse:
-						[framelessStackDelta := framelessStackDelta + descriptor stackDelta.
-						 "Without immutability we win if there are two or more stores and the receiver is new."
-						 self cppIf: IMMUTABILITY
-							ifTrue: []
-							ifFalse:
-								[descriptor is1ByteInstVarStore ifTrue:
-									[seenInstVarStore
-										ifTrue: [useTwoPaths := true]
-										ifFalse: [seenInstVarStore := true]]]]].
+	[ pc <= endPC ] whileTrue: [
+			byte0 := objectMemory fetchByte: pc ofObject: methodObj.
+			descriptor := self generatorAt: byte0.
+			descriptor isExtension ifTrue: [
+					descriptor opcode = Nop ifTrue: [ "unknown bytecode tag; see Cogit class>>#generatorTableFrom:"
+						^ EncounteredUnknownBytecode ].
+					self loadSubsequentBytesForDescriptor: descriptor at: pc.
+					self perform: descriptor generator ].
+			(descriptor isReturn and: [ pc >= latestContinuation ]) ifTrue: [
+				endPC := pc ].
 
-		 descriptor isBranch ifTrue:
-			[distance := self spanFor: descriptor at: pc exts: nExts in: methodObj.
-			 targetPC := pc + descriptor numBytes + distance.
-			 self maybeCountFixup: descriptor.
-			 (self isBackwardBranch: descriptor at: pc exts: nExts in: methodObj)
-				ifTrue: [self initializeFixupAt: targetPC]
-				ifFalse:
-					[latestContinuation := latestContinuation max: targetPC.
-					 self maybeCountCounter]].
-			
-		 latestContinuation := self 
-			maybeDealWithUnsafeJumpForDescriptor: descriptor 
-			pc: pc 
-			latestContinuation: latestContinuation.
+			needsFrame ifFalse: [
+					(descriptor needsFrameFunction isNil or: [
+						 self
+							 perform: descriptor needsFrameFunction
+							 with: framelessStackDelta ])
+						ifTrue: [ "With immutability we win simply by avoiding a frame build if the receiver is young and not immutable."
+								needsFrame := true.
+								useTwoPaths := false ]
+						ifFalse: [
+								framelessStackDelta := framelessStackDelta
+								                       + descriptor stackDelta.
+								"Without immutability we win if there are two or more stores and the receiver is new."
+								descriptor is1ByteInstVarStore ifTrue: [
+										seenInstVarStore
+											ifTrue: [ useTwoPaths := true ]
+											ifFalse: [ seenInstVarStore := true ] ] ] ].
 
-		 pc := pc + descriptor numBytes.
-		 nExts := descriptor isExtension ifTrue: [nExts + 1] ifFalse: [extA := numExtB := extB := 0].
-		 prevBCDescriptor := descriptor].
-	
+			descriptor isBranch ifTrue: [
+					distance := self
+						            spanFor: descriptor
+						            at: pc
+						            exts: nExts
+						            in: methodObj.
+					targetPC := pc + descriptor numBytes + distance.
+					self maybeCountFixup: descriptor.
+					(self
+						 isBackwardBranch: descriptor
+						 at: pc
+						 exts: nExts
+						 in: methodObj)
+						ifTrue: [ self initializeFixupAt: targetPC ]
+						ifFalse: [
+								latestContinuation := latestContinuation max: targetPC.
+								self maybeCountCounter ] ].
+
+			latestContinuation := self
+				                      maybeDealWithUnsafeJumpForDescriptor:
+				                      descriptor
+				                      pc: pc
+				                      latestContinuation: latestContinuation.
+
+			pc := pc + descriptor numBytes.
+			nExts := descriptor isExtension
+				         ifTrue: [ nExts + 1 ]
+				         ifFalse: [ extA := numExtB := extB := 0 ].
+			prevBCDescriptor := descriptor ].
+
 	"ok"
 	^ 0
 ]

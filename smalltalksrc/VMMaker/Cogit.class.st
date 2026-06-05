@@ -611,47 +611,51 @@ Cogit class >> generatorTable [
 
 { #category : 'class initialization' }
 Cogit class >> generatorTableFrom: anArray [
+
 	generatorTable := CArrayAccessor on: (Array new: 256).
-	anArray do:
-		[:tuple| | descriptor |
-		(descriptor := CogBytecodeDescriptor new)
-						numBytes: tuple first;
-						generator: tuple fourth;
-						isReturn: (tuple includes: #return);
-						hasUnsafeJump: (tuple includes: #hasUnsafeJump);
-						isMapped: ((tuple includes: #isMappedIfImmutability)
-										ifTrue: [self bindingOf: #IMMUTABILITY]
-										ifFalse: [tuple includes: #isMapped]);
-						isMappedInBlock: (tuple includes: #isMappedInBlock);
-						spanFunction: ((tuple includes: #branch)
-							ifTrue: [ tuple detect: [:thing| thing isSymbol and: [thing numArgs = 4]]]);
-						isBranchTrue: (tuple includes: #isBranchTrue);
-						isBranchFalse: (tuple includes: #isBranchFalse);
-						isExtension: (tuple includes: #extension);
-						isInstVarRef: (tuple includes: #isInstVarRef);	"for Spur"
-						is1ByteInstVarStore: (tuple includes: #is1ByteInstVarStore);	"for Spur"
-						yourself.
-		"As a hack to cut down on descriptor flags, use opcode to tag unusedBytecode for scanning.
+	anArray do: [ :tuple |
+			| descriptor |
+			(descriptor := CogBytecodeDescriptor new)
+				numBytes: tuple first;
+				generator: tuple fourth;
+				isReturn: (tuple includes: #return);
+				hasUnsafeJump: (tuple includes: #hasUnsafeJump);
+				isMapped: ((tuple includes: #isMappedIfImmutability)
+						 ifTrue: [ false ]
+						 ifFalse: [ tuple includes: #isMapped ]);
+				isMappedInBlock: (tuple includes: #isMappedInBlock);
+				spanFunction: ((tuple includes: #branch) ifTrue: [
+							 tuple detect: [ :thing |
+									 thing isSymbol and: [ thing numArgs = 4 ] ] ]);
+				isBranchTrue: (tuple includes: #isBranchTrue);
+				isBranchFalse: (tuple includes: #isBranchFalse);
+				isExtension: (tuple includes: #extension);
+				isInstVarRef: (tuple includes: #isInstVarRef);
+				"for Spur"is1ByteInstVarStore:
+					(tuple includes: #is1ByteInstVarStore);
+				"for Spur"yourself.
+			"As a hack to cut down on descriptor flags, use opcode to tag unusedBytecode for scanning.
 		 Currently descriptors are exactly 16 bytes with all 8 flag bits used.
 		As another hack to eliminate a test in scanMethod mark unknowns as extensions."
-		descriptor generator == #unknownBytecode ifTrue:
-			[descriptor opcode: Nop; isExtension: true].
-		tuple do:
-			[:thing|
-			thing isSymbol ifTrue:
-				[(thing beginsWith: #needsFrame) ifTrue:
-					[descriptor needsFrameFunction: thing].
-				 (CogRTLOpcodes classPool at: thing ifAbsent: []) ifNotNil:
-					[:opcode| descriptor opcode: opcode]]].
-		tuple last isInteger
-			ifTrue: [descriptor stackDelta: tuple last]
-			ifFalse:
-				[descriptor needsFrameFunction ifNotNil:
-					[self error: 'frameless block bytecodes must specify a stack delta']].
-		tuple second to: tuple third do:
-			[:index|
-			generatorTable at: index put: descriptor]].
-	^generatorTable
+			descriptor generator == #unknownBytecode ifTrue: [
+					descriptor
+						opcode: Nop;
+						isExtension: true ].
+			tuple do: [ :thing |
+					thing isSymbol ifTrue: [
+							(thing beginsWith: #needsFrame) ifTrue: [
+								descriptor needsFrameFunction: thing ].
+							(CogRTLOpcodes classPool at: thing ifAbsent: [ ]) ifNotNil: [
+								:opcode | descriptor opcode: opcode ] ] ].
+			tuple last isInteger
+				ifTrue: [ descriptor stackDelta: tuple last ]
+				ifFalse: [
+						descriptor needsFrameFunction ifNotNil: [
+							self error:
+								'frameless block bytecodes must specify a stack delta' ] ].
+			tuple second to: tuple third do: [ :index |
+			generatorTable at: index put: descriptor ] ].
+	^ generatorTable
 ]
 
 { #category : 'accessing' }
@@ -9886,11 +9890,6 @@ Cogit >> missOffset [
 Cogit >> mnuOffset [
 	<api>
 	^missOffset
-]
-
-{ #category : 'compile abstract instructions' }
-Cogit >> needsFrameIfImmutability: stackDelta [
-	^ IMMUTABILITY
 ]
 
 { #category : 'compile abstract instructions' }

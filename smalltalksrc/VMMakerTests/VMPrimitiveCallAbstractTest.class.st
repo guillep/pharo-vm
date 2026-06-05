@@ -47,14 +47,6 @@ VMPrimitiveCallAbstractTest >> jitCompilerClass [
 ]
 
 { #category : 'methods under test' }
-VMPrimitiveCallAbstractTest >> jitOptions [
-
-	^ super jitOptions
-		  at: #IMMUTABILITY put: true;
-		  yourself
-]
-
-{ #category : 'methods under test' }
 VMPrimitiveCallAbstractTest >> methodReturningNil [
 
 	^ nil

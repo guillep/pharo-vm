@@ -527,7 +527,6 @@ VMSimpleStackBasedCogitAbstractTest >> jitOptions [
 
 	^ Dictionary newFromPairs: { 
 		#ISA. isa.
-		#IMMUTABILITY. false.
 		#COGVM. true.
 		#bytecodeTableInitializer. #initializeBytecodeTableForSistaV1.	
 		#ObjectMemory. self memoryClass name }

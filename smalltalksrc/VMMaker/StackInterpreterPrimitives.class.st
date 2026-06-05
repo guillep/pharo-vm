@@ -1604,8 +1604,6 @@ StackInterpreterPrimitives >> primitiveInstVarAtPut [
 		[^self primitiveFailFor: PrimErrBadArgument].
 	(objectMemory isImmediate: rcvr) ifTrue:
 		[^self primitiveFailFor: PrimErrBadReceiver].
-	(objectMemory isObjImmutable: rcvr) ifTrue:
-		[^self primitiveFailFor: PrimErrNoModification].
 	index := objectMemory integerValueOf: index.
 	hdr := objectMemory baseHeader: rcvr.
 	fmt := objectMemory formatOfHeader: hdr.
@@ -2819,8 +2817,6 @@ StackInterpreterPrimitives >> primitiveSlotAtPut [
 		^ self primitiveFailFor: PrimErrBadArgument ].
 	(objectMemory isImmediate: rcvr) ifTrue: [ 
 		^ self primitiveFailFor: PrimErrBadReceiver ].
-	(objectMemory isObjImmutable: rcvr) ifTrue: [ 
-		^ self primitiveFailFor: PrimErrNoModification ].
 
 	fmt := objectMemory formatOf: rcvr.
 	index := (objectMemory integerValueOf: index) - 1.

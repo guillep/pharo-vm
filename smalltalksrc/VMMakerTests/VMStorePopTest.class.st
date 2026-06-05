@@ -6,14 +6,6 @@ Class {
 	#tag : 'JitTests'
 }
 
-{ #category : 'running' }
-VMStorePopTest >> jitOptions [
-
-	^ super jitOptions
-		  at: #IMMUTABILITY put: true;
-		  yourself
-]
-
 { #category : 'tests' }
 VMStorePopTest >> testExtendedStoreAndPopIV1ImmutableObjectCallingConvention [
 

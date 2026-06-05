@@ -542,12 +542,6 @@ InterpreterProxy >> isNonImmediate: anObject [
 	^ (self isImmediate: anObject) not
 ]
 
-{ #category : 'object access' }
-InterpreterProxy >> isOopImmutable: oop [
-	<option: #IMMUTABILITY>
-	^StackInterpreter objectMemoryClass isOopImmutable: oop
-]
-
 { #category : 'testing' }
 InterpreterProxy >> isOopMutable: anOop [
 	<api>

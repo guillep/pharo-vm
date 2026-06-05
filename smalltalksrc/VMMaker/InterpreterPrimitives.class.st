@@ -154,66 +154,6 @@ InterpreterPrimitives >> cStringOrNullFor: oop [
 	^cString
 ]
 
-{ #category : 'object access primitives' }
-InterpreterPrimitives >> canBeImmutable: oop [
-	<option: #IMMUTABILITY>
-	| scheduler processLists schedAssoc |
-	
-	self assert: (objectMemory isNonImmediate: oop).
-	
-	"For now we fail the primitive for contexts to we ensure there are no immutable contexts.
-	Later we can consider having immutable contexts and send cannotReturn callback
-	when returning to an immutable context. That would mean that setting a context 
-	to immutable would require a divorce and returns to immutable context are 
-	necessarily across stack pages"
-	(objectMemory isContext: oop) ifTrue: [ ^ false ].
-	
-	"Weak structures can't be immutable"
-	(objectMemory isEphemeron: oop) ifTrue: [^ false].
-	(objectMemory isWeakNonImm: oop) ifTrue: [^ false].
-	
-	"No clue what is going on for semaphores so they can't be immutable"
-	(objectMemory isSemaphoreObj: oop) ifTrue: [^ false].
-	
-	"Simple version of process management: we forbid Process and LinkedList instances to be immutable 
-	 as well as the Processor and the array of activeProcess"
-	schedAssoc := objectMemory splObj: SchedulerAssociation.
-	schedAssoc = objectMemory nilObject ifTrue: [ ^ true ].
-
-	scheduler := objectMemory fetchPointer: ValueIndex ofObject: schedAssoc.
-	processLists := objectMemory fetchPointer: ProcessListsIndex ofObject: scheduler.
-	oop = scheduler ifTrue: [ ^ false ].
-	oop = processLists ifTrue: [ ^ false ].
-	"Is it a linkedList ?"
-	(objectMemory classIndexOf: (objectMemory fetchPointer: 1 ofObject: processLists)) = (objectMemory classIndexOf: oop) ifTrue: [ ^ false ].
-	"is it a Process ?"
-	(objectMemory classIndexOf: (objectMemory fetchPointer: ActiveProcessIndex ofObject: scheduler)) =  (objectMemory classIndexOf: oop) ifTrue: [ ^ false ].
-	
-	"The rest of the code is relative to process management: the Processor (the active 
-	process scheduler) can't be immutable, as well as all the objects relative to Process management "
-	"scheduler := self fetchPointer: ValueIndex ofObject: (self splObj: SchedulerAssociation).
-	processLists := objectMemory fetchPointer: ProcessListsIndex ofObject: scheduler.
-	((objectMemory formatOf: oop) = objectMemory nonIndexablePointerFormat)
-		ifFalse: 
-			[ (objectMemory isArrayNonImm: oop) ifFalse: [ ^ true ].
-			  ^ (oop = processLists) not ].
-	(objectMemory numSlotsOf: oop) >= 2 ifFalse: [ ^ true ].
-	""is the oop the scheduler itself ?""
-	oop = scheduler ifTrue: [ ^ false ].
-	1 to: (objectMemory numSlotsOf: processLists) do: [ :i |
-		""is the oop one of the linked lists ?""
-		(list := processLists at: i) = oop ifTrue: [^ false].
-		""is the oop one of the runnable process ?""
-		first := objectMemory fetchPointer: FirstLinkIndex ofObject: list.
-		first = objectMemory nilObject ifFalse: 
-			[ last := objectMemory fetchPointer: LastLinkIndex ofObject: list.
-			  link := first.
-			  [ link = last ] whileFalse: 
-				[ link = oop ifTrue: [ ^ false ]. 
-				  link := objectMemory fetchPointer: NextLinkIndex ofObject: link. ] ] ]."
-	^ true
-]
-
 { #category : 'process primitive support' }
 InterpreterPrimitives >> doWaitSemaphore: sema [
 
@@ -1545,8 +1485,6 @@ InterpreterPrimitives >> primitiveFloatAtPut [
 	index := self stackValue: 1.
 	(objectMemory isImmediateFloat: rcvr) ifTrue:
 		[^self primitiveFailFor: PrimErrBadReceiver].
-	(objectMemory isObjImmutable: rcvr) ifTrue:
-		[^self primitiveFailFor: PrimErrNoModification].
 	index = ConstOne ifTrue:
 		[objectMemory storeLong32: (VMBIGENDIAN ifTrue: [0] ifFalse: [1])
 			ofObject: rcvr
@@ -1763,14 +1701,6 @@ InterpreterPrimitives >> primitiveGetAttribute [
 		Into: s + objectMemory baseHeaderSize
 		Length: sz.
 	self pop: 2 thenPush: s.
-]
-
-{ #category : 'object access primitives' }
-InterpreterPrimitives >> primitiveGetImmutability [
-	<option: #IMMUTABILITY>
-	| rcvr |
-	rcvr := self stackValue: 0.
-	self pop: argumentCount + 1 thenPushBool: (objectMemory isOopImmutable: rcvr)
 ]
 
 { #category : 'other primitives' }
@@ -2043,8 +1973,6 @@ InterpreterPrimitives >> primitiveInstVarAtPut [
 		[^self primitiveFailFor: PrimErrBadArgument].
 	(objectMemory isImmediate: rcvr) ifTrue:
 		[^self primitiveFailFor: PrimErrBadReceiver].
-	(objectMemory isObjImmutable: rcvr) ifTrue:
-		[^self primitiveFailFor: PrimErrNoModification].
 	index := objectMemory integerValueOf: index.
 	hdr := objectMemory baseHeader: rcvr.
 	fmt := objectMemory formatOfHeader: hdr.
@@ -2153,8 +2081,6 @@ InterpreterPrimitives >> primitiveIntegerAtPut [
 		[^self primitiveFailFor: PrimErrBadArgument].
 	(objectMemory isImmediate: rcvr) ifTrue:
 		[^self primitiveFailFor: PrimErrBadReceiver].
-	(objectMemory isObjImmutable: rcvr) ifTrue:
-		[^self primitiveFailFor: PrimErrNoModification].
 	fmt := objectMemory formatOf: rcvr.
 	index := (objectMemory integerValueOf: index) - 1.
 
@@ -2781,8 +2707,6 @@ InterpreterPrimitives >> primitiveObjectAtPut [
 		[^self primitiveFailFor: PrimErrBadArgument].
 	index := objectMemory integerValueOf: index.
 	thisReceiver := self stackValue: 2.
-	(objectMemory isObjImmutable: thisReceiver) ifTrue:
-		[^self primitiveFailFor: PrimErrNoModification].
 	(index > 0 and: [index <= ((objectMemory literalCountOf: thisReceiver) + LiteralStart)]) ifFalse:
 		[^self primitiveFailFor: PrimErrBadIndex].
 	objectMemory storePointer: index - 1 ofObject: thisReceiver withValue: newValue.
@@ -3040,27 +2964,6 @@ InterpreterPrimitives >> primitiveSetIdentityHash [
 ]
 
 { #category : 'object access primitives' }
-InterpreterPrimitives >> primitiveSetImmutability [
-	<option: #IMMUTABILITY>
-	| rcvr wasImmutable |
-	 rcvr := self stackValue: 1.
-	 (objectMemory isImmediate: rcvr) ifTrue:
-		[^self primitiveFailFor: PrimErrBadReceiver].
-	 wasImmutable := objectMemory isObjImmutable: rcvr.
-	 self stackTop = objectMemory trueObject
-		ifTrue:
-			[(self canBeImmutable: rcvr) ifFalse:
-				[^self primitiveFailFor: PrimErrInappropriate].
-			  objectMemory setIsImmutableOf: rcvr to: true]
-		ifFalse: [
-	self stackTop = objectMemory falseObject
-		ifTrue: [objectMemory setIsImmutableOf: rcvr to: false]
-	 	ifFalse:
-			[^self primitiveFailFor: PrimErrBadArgument]].
-	 self pop: argumentCount + 1 thenPushBool: wasImmutable
-]
-
-{ #category : 'object access primitives' }
 InterpreterPrimitives >> primitiveSetOrHasIdentityHash [
 
 	| hash oldHash thisReceiver isReceiverAClass |
@@ -3127,8 +3030,6 @@ InterpreterPrimitives >> primitiveShortAtPut [
 	rcvr := self stackValue: 2.
 	(objectMemory isWordsOrBytes: rcvr) ifFalse:
 		[^self primitiveFailFor: PrimErrInappropriate].
-	(objectMemory isObjImmutable: rcvr) ifTrue:
-		[^self primitiveFailFor: PrimErrNoModification].
 	index := objectMemory integerValueOf: index.
 	(index >= 1 and: [index <= (objectMemory num16BitUnitsOf: rcvr)]) ifFalse:
 		[^self primitiveFailFor: PrimErrBadIndex].
@@ -3310,8 +3211,6 @@ InterpreterPrimitives >> primitiveSlotAtPut [
 		[^self primitiveFailFor: PrimErrBadArgument].
 	(objectMemory isImmediate: rcvr) ifTrue:
 		[^self primitiveFailFor: PrimErrBadReceiver].
-	(objectMemory isObjImmutable: rcvr) ifTrue:
-		[^self primitiveFailFor: PrimErrNoModification].
 	fmt := objectMemory formatOf: rcvr.
 	index := (objectMemory integerValueOf: index) - 1.
 
@@ -3777,9 +3676,6 @@ InterpreterPrimitives >> primitiveStringReplace [
 	stop := objectMemory integerValueOf: stop.
 	replStart := objectMemory integerValueOf: replStart.
 
-	(stop >= start and: [ objectMemory isObjImmutable: array ]) ifTrue: [ 
-		^ self primitiveFailFor: PrimErrNoModification ].
-
 	arrayFmt := objectMemory formatOf: array.
 	arrayLength := objectMemory lengthOf: array format: arrayFmt.
 	arrayFmt := objectMemory classFormatFromInstFormat: arrayFmt.
@@ -4116,30 +4012,6 @@ InterpreterPrimitives >> primitiveV3IntegerAt [
 	intValue := objectMemory intAt: addr.
 	result := self signed32BitIntegerFor: intValue.
 	self pop: 2 thenPush: result
-]
-
-{ #category : 'indexing primitives' }
-InterpreterPrimitives >> primitiveV3IntegerAtPut [
-	"Assign an indexable variable of a words receiver with a 32 bit signed integer."
-	| index rcvr sz addr value valueOop |
-	<var: 'value' type: #int>
-	valueOop := self stackValue: 0.
-	index := self stackIntegerValue: 1.
-	value := self signed32BitValueOf: valueOop.
-	self successful ifFalse:
-		[^self primitiveFailFor: PrimErrBadArgument].
-	rcvr := self stackValue: 2.
-	(objectMemory isWords: rcvr) ifFalse:
-		[^self primitiveFailFor: PrimErrInappropriate].
-	(objectMemory isObjImmutable: rcvr) ifTrue:
-		[^self primitiveFailFor: PrimErrNoModification].
-	sz := objectMemory lengthOf: rcvr.  "number of fields"
-	(index >= 1 and: [index <= sz]) ifFalse:
-		[^self primitiveFailFor: PrimErrBadIndex].
-	"4 = 32 bits / 8"
-	addr := rcvr + objectMemory baseHeaderSize + (index - 1 * 4). "for zero indexing"
-	value := objectMemory intAt: addr put: value.
-	self pop: 3 thenPush: valueOop "pop all; return value"
 ]
 
 { #category : 'process primitives' }

@@ -132,7 +132,7 @@ SimpleStackBasedCogit class >> initializeBytecodeTableForSistaV1 [
 													v3:ShortForward:Branch:Distance:)
 
 		"stores"
-		(1 200 207 genStoreAndPopReceiverVariableBytecode isInstVarRef isMappedIfImmutability needsFrameIfImmutability: -1)
+		(1 200 207 genStoreAndPopReceiverVariableBytecode isInstVarRef isMappedIfImmutability needsFrameNever: -1)
 		(1 208 215 genStoreAndPopTemporaryVariableBytecode)
 
 		(1 216 216 genPopStackBytecode needsFrameNever: -1)
@@ -980,39 +980,6 @@ SimpleStackBasedCogit >> directedBindingSuperSendTrampolines [
 ]
 
 { #category : 'bytecode generators' }
-SimpleStackBasedCogit >> doubleExtendedDoAnythingBytecode [
-	"Replaces the Blue Book double-extended send [132], in which the first byte was wasted on 8 bits of argument count. 
-	Here we use 3 bits for the operation sub-type (opType),  and the remaining 5 bits for argument count where needed. 
-	The last byte give access to 256 instVars or literals. 
-	See also secondExtendedSendBytecode"
-	| opType |
-	opType := byte1 >> 5.
-	opType = 0 ifTrue:
-		[^self genSend: byte2 numArgs: (byte1 bitAnd: 31)].
-	opType = 1 ifTrue:
-		[^self genSendSuper: byte2 numArgs: (byte1 bitAnd: 31)].
-	"We need a map entry for this bytecode for correct parsing.
-	 The sends will get an IsSend entry anyway.  The other cases need a fake one."
-	opType caseOf: {
-			[2]	->	[(coInterpreter isReadMediatedContextInstVarIndex: byte2)
-						ifTrue: [self genPushMaybeContextReceiverVariable: byte2]
-						ifFalse: [self genPushReceiverVariable: byte2]].
-			[3]	->	[self genPushLiteralIndex: byte2].
-			[4]	->	[self genPushLiteralVariable: byte2].
-			[7]	->	[self genStorePop: false LiteralVariable: byte2.
-					 self cppIf: IMMUTABILITY ifTrue: ["genStorePop:LiteralVariable: annotates; don't annotate twice" ^0]] }
-		otherwise: "5 & 6"
-			[(coInterpreter isWriteMediatedContextInstVarIndex: byte2)
-				ifTrue: [self genStorePop: opType = 6 MaybeContextReceiverVariable: byte2]
-				ifFalse: [self genStorePop: opType = 6 ReceiverVariable: byte2].
-			 self cppIf: IMMUTABILITY ifTrue: ["genStorePop:...ReceiverVariable: annotate; don't annotate twice" ^0]].
-	"We need a map entry for this bytecode for correct parsing (if the method builds a frame)."
-	needsFrame ifTrue:
-		[self annotateBytecode: self Label].
-	^0
-]
-
-{ #category : 'bytecode generators' }
 SimpleStackBasedCogit >> duplicateTopBytecode [
 	self MoveMw: 0 r: SPReg R: TempReg.
 	self PushR: TempReg.
@@ -1059,23 +1026,6 @@ SimpleStackBasedCogit >> extendedPushBytecode [
 	variableType = 2 ifTrue:
 		[^self genPushLiteralIndex: variableIndex].
 	^self genPushLiteralVariable: variableIndex
-]
-
-{ #category : 'bytecode generators' }
-SimpleStackBasedCogit >> extendedStoreAndPopBytecode [
-	| variableType variableIndex |
-	variableType := byte1 >> 6 bitAnd: 3.
-	variableIndex := byte1 bitAnd: 63.
-	variableType = 0 ifTrue:
-		[^self genStorePop: true ReceiverVariable: variableIndex].
-	variableType = 1 ifTrue:
-		[self genStorePop: true TemporaryVariable: variableIndex.
-		"needs a fake map entry if Immutability is ON..."
-		self cppIf: IMMUTABILITY ifTrue: [ self annotateBytecode: self Label. ].
-		^ 0].
-	variableType = 3 ifTrue:
-		[^self genStorePop: true LiteralVariable: variableIndex].
-	^EncounteredUnknownBytecode
 ]
 
 { #category : 'bytecode generator support' }
@@ -1383,41 +1333,12 @@ SimpleStackBasedCogit >> genExtStoreAndPopReceiverVariableBytecode [
 ]
 
 { #category : 'bytecode generators' }
-SimpleStackBasedCogit >> genExtStoreAndPopRemoteTempOrInstVarLongBytecode [
-	^ self genExtStorePopRemoteTempOrInstVarLongBytecodePopBoolean: true
-]
-
-{ #category : 'bytecode generators' }
 SimpleStackBasedCogit >> genExtStoreLiteralVariableBytecode [
 	"233		11101001	i i i i i i i i	Store Literal Variable #iiiiiiii (+ Extend A * 256)"
 	| index |
 	index := byte1 + (extA << 8).
 	extA := 0.
 	^self genStorePop: false LiteralVariable: index
-]
-
-{ #category : 'bytecode generators' }
-SimpleStackBasedCogit >> genExtStorePopRemoteTempOrInstVarLongBytecodePopBoolean: popBoolean [
-	| index |
-	extB := 0. "simple cogit don't use the extra flag"
-	numExtB := 0.
-	(byte2 noMask: coInterpreter remoteIsInstVarAccess)
-		ifTrue: 
-			[ self genStorePop: popBoolean RemoteTemp: byte1 At: byte2.
-			self cppIf: IMMUTABILITY ifTrue: [ self annotateBytecode: self Label ] ]
-		ifFalse: 
-			[ index := byte1 + (extA << 8).
-			extA := 0.
-			(coInterpreter isWriteMediatedContextInstVarIndex: index)
-				ifTrue: [ self 
-						genStorePop: popBoolean 
-						MaybeContextRemoteInstVar: index 
-						ofObjectAt: byte2 - coInterpreter remoteIsInstVarAccess ]
-				ifFalse: [ self 
-						genStorePop: popBoolean 
-						RemoteInstVar: index 
-						ofObjectAt: byte2 - coInterpreter remoteIsInstVarAccess  ] ].
-	^ 0
 ]
 
 { #category : 'bytecode generators' }
@@ -1429,11 +1350,6 @@ SimpleStackBasedCogit >> genExtStoreReceiverVariableBytecode [
 	^(coInterpreter isWriteMediatedContextInstVarIndex: index)
 		ifTrue: [self genStorePop: false MaybeContextReceiverVariable: index]
 		ifFalse: [self genStorePop: false ReceiverVariable: index]
-]
-
-{ #category : 'bytecode generators' }
-SimpleStackBasedCogit >> genExtStoreRemoteTempOrInstVarLongBytecode [
-	^ self genExtStorePopRemoteTempOrInstVarLongBytecodePopBoolean: false
 ]
 
 { #category : 'bytecode generators' }
@@ -2456,11 +2372,6 @@ SimpleStackBasedCogit >> genSistaExtStoreAndPopLiteralVariableBytecode [
 ]
 
 { #category : 'bytecode generators' }
-SimpleStackBasedCogit >> genSistaExtStoreAndPopReceiverVariableBytecode [
-	^ self genSistaExtStoreAndPopReceiverVariableBytecodePopBoolean: true
-]
-
-{ #category : 'bytecode generators' }
 SimpleStackBasedCogit >> genSistaExtStoreAndPopReceiverVariableBytecodePopBoolean: boolean [
 	| index |
 	extB := 0. "Simple cogit don't use the extra flags"
@@ -2485,11 +2396,6 @@ SimpleStackBasedCogit >> genSistaExtStoreLiteralVariableBytecodePopBoolean: bool
 	index := byte1 + (extA << 8).
 	extA := 0.
 	^ self genStorePop: boolean LiteralVariable: index
-]
-
-{ #category : 'bytecode generators' }
-SimpleStackBasedCogit >> genSistaExtStoreReceiverVariableBytecode [
-	^ self genSistaExtStoreAndPopReceiverVariableBytecodePopBoolean: false
 ]
 
 { #category : 'bytecode generators' }
