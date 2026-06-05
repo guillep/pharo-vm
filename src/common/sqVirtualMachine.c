@@ -80,7 +80,9 @@ void tenuringIncrementalGC(void);
 #endif
 sqInt isArray(sqInt oop);
 sqInt isOopMutable(sqInt oop);
+#if IMMUTABILITY
 sqInt isOopImmutable(sqInt oop);
+#endif
 
 /* InterpreterProxy methodsFor: 'converting' */
 sqInt  booleanValueOf(sqInt obj);
@@ -420,8 +422,10 @@ struct VirtualMachine* sqGetInterpreterProxy(void)
 
 #if VM_PROXY_MINOR > 8
 	VM->primitiveFailFor    = primitiveFailFor;
+#if IMMUTABILITY
 	VM->isOopImmutable = isOopImmutable;
 	VM->isOopMutable   = isOopMutable;
+#endif
 #endif
 
 #if VM_PROXY_MINOR > 9

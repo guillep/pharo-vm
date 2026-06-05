@@ -80,9 +80,7 @@ extern sqInt failed(void);
 extern void * firstIndexableField(sqInt oop);
 extern sqInt isBytes(sqInt oop);
 #if IMMUTABILITY
-#if IMMUTABILITY
 extern sqInt isOopImmutable(sqInt oop);
-#endif /* IMMUTABILITY */
 #else
 # define isOopImmutable(oop) 0
 #endif
@@ -204,9 +202,11 @@ primitiveCompressToByteArray(void)
 	if (!(isBytes(stackValue(0)))) {
 		return primitiveFailFor(PrimErrBadArgument);
 	}
+#if IMMUTABILITY
 	if (isOopImmutable(stackValue(0))) {
 		return primitiveFailFor(PrimErrNoModification);
 	}
+#endif
 	ba = firstIndexableField(stackValue(0));
 	size = sizeOfSTArrayFromCPrimitive(bm);
 	destSize = sizeOfSTArrayFromCPrimitive(ba);
@@ -390,9 +390,11 @@ primitiveConvert8BitSigned(void)
 	if (failed()) {
 		return primitiveFailFor(PrimErrBadArgument);
 	}
+#if IMMUTABILITY
 	if (isOopImmutable(soundBufferOop)) {
 		return primitiveFailFor(PrimErrNoModification);
 	}
+#endif
 	arraySize = sizeOfSTArrayFromCPrimitive(aByteArray);
 	if ((byteSizeOf(soundBufferOop)) < (2 * arraySize)) {
 		return primitiveFailFor(PrimErrBadArgument);
@@ -429,9 +431,11 @@ primitiveDecompressFromByteArray(void)
     sqInt pastEnd;
 
 	bm = arrayValueOf(stackValue(2));
+#if IMMUTABILITY
 	if (isOopImmutable(stackValue(2))) {
 		return primitiveFailFor(PrimErrNoModification);
 	}
+#endif
 	if (!(isBytes(stackValue(1)))) {
 		return primitiveFailFor(PrimErrBadArgument);
 	}
@@ -703,9 +707,11 @@ primitiveTranslateStringWithTable(void)
 	if (!(isBytes(aStringOop))) {
 		return primitiveFailFor(PrimErrBadArgument);
 	}
+#if IMMUTABILITY
 	if (isOopImmutable(aStringOop)) {
 		return primitiveFailFor(PrimErrNoModification);
 	}
+#endif
 	start = stackIntegerValue(2);
 	if (failed()) {
 		return primitiveFailFor(PrimErrBadArgument);
@@ -756,10 +762,6 @@ setInterpreter(struct VirtualMachine *anInterpreter)
 		isBytes = interpreterProxy->isBytes;
 #if IMMUTABILITY
 		isOopImmutable = interpreterProxy->isOopImmutable;
-#else
-#if !defined(isOopImmutable)
-		isOopImmutable = 0;
-#endif
 #endif
 		methodArgumentCount = interpreterProxy->methodArgumentCount;
 		methodReturnInteger = interpreterProxy->methodReturnInteger;
