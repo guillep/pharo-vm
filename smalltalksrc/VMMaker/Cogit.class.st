@@ -5299,8 +5299,14 @@ Cogit >> compileEntireMethod [
 	self compileEntry.
 	(result := self compilePrimitive) < 0 ifTrue:
 		[^result].
+	
+	"First path"
 	self compileFrameBuild.
-	^ self compileMethodBody
+	self compileMethodBody.
+	
+	"Second path"
+	self compileFrameBuild.
+	^ self compileMethodBody.
 ]
 
 { #category : 'compile abstract instructions' }
