@@ -3765,12 +3765,12 @@ Cogit >> ceSICMiss: receiver [
 	<api>
 	<story: #pic>
 	<var: #inlineCache type: #'CogMethod *'>
-	| inlineCache missedTargetReturnAddress callerReturnAddress missedTargetCogMethod newTargetMethodOrNil errorSelectorOrNil cacheTag linkingSucceeded |
-	missedTargetReturnAddress := coInterpreter popStack asUnsignedInteger.
+	| inlineCache missedTargetMethod callerReturnAddress missedTargetCogMethod newTargetMethodOrNil errorSelectorOrNil cacheTag linkingSucceeded |
+	missedTargetMethod := coInterpreter popMachineCodeStub.
+
 	"Whether we can relink to a PIC or not we need to pop off the inner return and identify the target method."
 	missedTargetCogMethod := self
-		                         cCoerceSimple:
-		                         missedTargetReturnAddress - missOffset
+		                         cCoerceSimple: missedTargetMethod
 		                         to: #'CogMethod *'.
 	(objectMemory isOopForwarded: receiver) ifTrue: [
 		^ coInterpreter ceSendFromInLineCacheMiss: missedTargetCogMethod ].
@@ -3782,7 +3782,7 @@ Cogit >> ceSICMiss: receiver [
 			 between: methodZoneBase
 			 and: methodZone freeStart).
 	self assert: missedTargetCogMethod selector ~= objectMemory nilObject.
-	self assert: missedTargetCogMethod asInteger + cmEntryOffset
+	self assert: missedTargetCogMethod asInteger + self entryOffset
 		= (backEnd callTargetFromReturnAddress: callerReturnAddress).
 
 	"FIXME: What does this check mean?"
@@ -3838,42 +3838,42 @@ Cogit >> ceSICMiss: receiver [
 									           missedTargetCogMethod selector
 									           in: coInterpreter mframeHomeMethodExport
 									           at: callerReturnAddress)
-							          target: inlineCache asInteger + cmEntryOffset ]
+							          target: inlineCache asInteger + self entryOffset ]
 					flushingCacheWith: [
 						self
 							flushICacheFrom: callerReturnAddress asUnsignedInteger - extent
 							to: callerReturnAddress asUnsignedInteger ] ] ].
 	inlineCache ifNil: [
-			| extent |
-			"      method | errorSelector             | situation
+		| extent |
+		"      method | errorSelector             | situation
 			 -------------+---------------------------+---------------------------------------------------------
 			  foundMethod | SelectorDoesNotUnderstand | Didn't find the method but found the DNU implementation
 			  foundMethod | nil                       | Found the method"
-			self
-				enableCodeZoneWriteDuring: [
-					inlineCache := self
-						               cogPICSelector: missedTargetCogMethod selector
-						               numArgs: missedTargetCogMethod cmNumArgs
-						               Case0Method: missedTargetCogMethod
-						               Case1Method: newTargetMethodOrNil
-						               tag: cacheTag
-						               isMNUCase:
-						               errorSelectorOrNil = SelectorDoesNotUnderstand.
-					linkingSucceeded := (inlineCache asInteger
-						                     between: MaxNegativeErrorCode
-						                     and: -1) not.
-					linkingSucceeded ifTrue: [ "Link the send site to the pic."
-						extent := backEnd
-							          rewriteCallAt: callerReturnAddress
-							          target: inlineCache asInteger + cmEntryOffset ] ]
-				flushingCacheWith: [
-					linkingSucceeded ifTrue: [
-						self
-							flushICacheFrom: inlineCache asUnsignedInteger
-							to: inlineCache asUnsignedInteger + picSize.
-						self
-							flushICacheFrom: callerReturnAddress asUnsignedInteger - extent
-							to: callerReturnAddress asUnsignedInteger ] ] ].
+		self
+			enableCodeZoneWriteDuring: [
+				inlineCache := self
+					               cogPICSelector: missedTargetCogMethod selector
+					               numArgs: missedTargetCogMethod cmNumArgs
+					               Case0Method: missedTargetCogMethod
+					               Case1Method: newTargetMethodOrNil
+					               tag: cacheTag
+					               isMNUCase:
+					               errorSelectorOrNil = SelectorDoesNotUnderstand.
+				linkingSucceeded := (inlineCache asInteger
+					                     between: MaxNegativeErrorCode
+					                     and: -1) not.
+				linkingSucceeded ifTrue: [ "Link the send site to the pic."
+					extent := backEnd
+						          rewriteCallAt: callerReturnAddress
+						          target: inlineCache asInteger + self entryOffset ] ]
+			flushingCacheWith: [
+				linkingSucceeded ifTrue: [
+					self
+						flushICacheFrom: inlineCache asUnsignedInteger
+						to: inlineCache asUnsignedInteger + picSize.
+					self
+						flushICacheFrom: callerReturnAddress asUnsignedInteger - extent
+						to: callerReturnAddress asUnsignedInteger ] ] ].
 
 	linkingSucceeded ifTrue: [ "Jump back into the pic at its entry in case this is an MNU (newTargetMethodOrNil is nil)"
 		coInterpreter
@@ -9945,16 +9945,6 @@ Cogit >> patchToMegamorphicICFor: selector numArgs: numArgs receiver: receiver [
 	"Jump into the oPIC at its entry"
 	coInterpreter executeCogMethod: oPIC fromLinkedSendWithReceiver: receiver.
 	^self unreachable
-]
-
-{ #category : 'in-line cacheing' }
-Cogit >> picAbortAddress: aPIC [
-
-	<var: #aPIC type: #'CogMethod *'>
-	"The PIC starts with a header of meta-data followed by machine code.
-	The first thing in the machine code stream is the abort section."
-
-	^ aPIC asInteger + (self sizeof: CogMethod)
 ]
 
 { #category : 'trampoline support' }
