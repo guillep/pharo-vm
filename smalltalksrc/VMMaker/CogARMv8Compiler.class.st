@@ -5488,11 +5488,6 @@ CogARMv8Compiler >> prepareStackToCallCFunctionInSmalltalkStack: anObject [
 	cogit MoveR: Extra2Reg R: SP.
 ]
 
-{ #category : 'accessing' }
-CogARMv8Compiler >> pushLinkRegisterByteSize [
-	^4
-]
-
 { #category : 'ARM convenience instructions' }
 CogARMv8Compiler >> pushR: srcReg [
 	

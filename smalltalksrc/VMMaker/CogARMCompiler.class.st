@@ -3047,11 +3047,6 @@ CogARMCompiler >> prepareStackToCallCFunctionInSmalltalkStack: anObject [
 	cogit MoveR: Extra2Reg R: SPReg.
 ]
 
-{ #category : 'accessing' }
-CogARMCompiler >> pushLinkRegisterByteSize [
-	^4
-]
-
 { #category : 'ARM convenience instructions' }
 CogARMCompiler >> pushR: srcReg [
 "	push word to TOS 

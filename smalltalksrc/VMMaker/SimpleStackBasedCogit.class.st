@@ -276,12 +276,6 @@ SimpleStackBasedCogit >> ceShortCutTraceBlockActivation: aProcessorSimulationTra
 ]
 
 { #category : 'simulation only' }
-SimpleStackBasedCogit >> ceShortCutTraceLinkedSend: aProcessorSimulationTrap [
-	self shortcutTrampoline: aProcessorSimulationTrap
-		to: [coInterpreter ceTraceLinkedSend: (processor registerAt: ReceiverResultReg)]
-]
-
-{ #category : 'simulation only' }
 SimpleStackBasedCogit >> ceShortCutTraceStore: aProcessorSimulationTrap [
 	<doNotGenerate>
 	self shortcutTrampoline: aProcessorSimulationTrap
@@ -2818,11 +2812,6 @@ SimpleStackBasedCogit >> generateTracingTrampolines [
 	"Generate trampolines for tracing.  In the simulator we can save a lot of time
 	 and avoid noise instructions in the lastNInstructions log by short-cutting these
 	 trampolines, but we need them in the real vm."
-	ceTraceLinkedSendTrampoline :=
-		self genTrampolineFor: #ceTraceLinkedSend:
-			called: 'ceTraceLinkedSendTrampoline'
-			arg: ReceiverResultReg
-			regsToSave: CallerSavedRegisterMask.
 	ceTraceBlockActivationTrampoline :=
 		self genTrampolineFor: #ceTraceBlockActivation
 			called: 'ceTraceBlockActivationTrampoline'
@@ -2861,7 +2850,7 @@ SimpleStackBasedCogit >> mapPCDataFor: cogMethod into: arrayObj [
 			ifFalse:
 				[objectMemory
 					storePointerUnchecked: 0 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: 1 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cmEntryOffset);
+					storePointerUnchecked: 1 ofObject: introspectionData withValue: (objectMemory integerObjectOf: self entryOffset);
 					storePointerUnchecked: 2 ofObject: introspectionData withValue: objectMemory nilObject;
 					storePointerUnchecked: 3 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cmNoCheckEntryOffset)].
 		 ^4].
@@ -2990,7 +2979,7 @@ SimpleStackBasedCogit >> pcDataFor: descriptor Annotation: isBackwardBranchAndAn
 			ifFalse:
 				[objectMemory
 					storePointerUnchecked: introspectionDataIndex + 0 ofObject: introspectionData withValue: objectMemory nilObject;
-					storePointerUnchecked: introspectionDataIndex + 1 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cmEntryOffset);
+					storePointerUnchecked: introspectionDataIndex + 1 ofObject: introspectionData withValue: (objectMemory integerObjectOf: self entryOffset);
 					storePointerUnchecked: introspectionDataIndex + 2 ofObject: introspectionData withValue: objectMemory nilObject;
 					storePointerUnchecked: introspectionDataIndex + 3 ofObject: introspectionData withValue: (objectMemory integerObjectOf: cmNoCheckEntryOffset)].
 		 objectMemory

@@ -2455,11 +2455,6 @@ CogMIPSELCompiler >> prefR: baseReg offset: offset hint: hint [
 	^self itype: PREF rs: baseReg rt: hint signedImmediate: offset
 ]
 
-{ #category : 'accessing' }
-CogMIPSELCompiler >> pushLinkRegisterByteSize [
-	^8
-]
-
 { #category : 'inline cacheing' }
 CogMIPSELCompiler >> relocateCallBeforeReturnPC: retpc by: delta [
 	| target |

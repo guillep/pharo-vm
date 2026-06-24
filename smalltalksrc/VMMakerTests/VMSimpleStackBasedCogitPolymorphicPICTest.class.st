@@ -174,7 +174,7 @@ VMSimpleStackBasedCogitPolymorphicPICTest >> testHasJumpToAbortTrampoline [
 	| pic |	
 	pic := self makePIC.
 
-	self assert: (cogit backend callTargetFromReturnAddress: pic asInteger + cogit missOffset) equals: (cogit picAbortTrampolineFor: numArgs)
+	self assert: (cogit backend callTargetFromReturnAddress: pic asInteger + cogit entryOffset) equals: (cogit picAbortTrampolineFor: numArgs)
 ]
 
 { #category : 'tests - hit/miss' }

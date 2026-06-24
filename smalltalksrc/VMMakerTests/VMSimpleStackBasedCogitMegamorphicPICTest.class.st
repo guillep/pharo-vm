@@ -85,7 +85,7 @@ VMSimpleStackBasedCogitMegamorphicPICTest >> testNewMegamorphicICHasTheCorrectPi
 	createdPic := cogit cogMegamorphicICSelector: selector numArgs: 1.
 
 	self
-		assert: (cogit backend callTargetFromReturnAddress: createdPic asInteger + cogit missOffset)
+		assert: (cogit backend callTargetFromReturnAddress: createdPic asInteger + cogit entryOffset)
 		equals: (cogit picAbortTrampolineFor: 1)
 ]
 

@@ -5883,12 +5883,6 @@ CogOutOfLineLiteralsRiscV64Compiler >> prepareStackToCallCFunctionInSmalltalkSta
 	cogit MoveR: Extra2Reg R: SP.
 ]
 
-{ #category : 'accessing' }
-CogOutOfLineLiteralsRiscV64Compiler >> pushLinkRegisterByteSize [
-
-	^8
-]
-
 { #category : 'inline cacheing' }
 CogOutOfLineLiteralsRiscV64Compiler >> relocateCallBeforeReturnPC: retpc by: delta [
 	

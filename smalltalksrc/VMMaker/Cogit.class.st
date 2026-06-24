@@ -151,7 +151,6 @@ Class {
 		'stackCheckLabel',
 		'stackOverflowCall',
 		'sendMiss',
-		'missOffset',
 		'cmEntryOffset',
 		'entry',
 		'cmNoCheckEntryOffset',
@@ -250,7 +249,9 @@ Class {
 		'picEndOfCodeLabel',
 		'picEndOfCodeOffset',
 		'picPrototype',
-		'cePICMissTrampoline'
+		'cePICMissTrampoline',
+		'picInterpretAbortOffset',
+		'picMNUAbortOffset'
 	],
 	#classVars : [
 		'AnnotationConstantNames',
@@ -2937,12 +2938,6 @@ Cogit >> ZeroExtend8R: reg1 R: reg2 [
 			^first]
 ]
 
-{ #category : 'in-line cacheing' }
-Cogit >> abortOffset [
-	<api>
-	^missOffset
-]
-
 { #category : 'testing' }
 Cogit >> abstractInstruction: theAbstractInstruction follows: anAbstractInstruction [
 	<var: #theAbstractInstruction type: #'AbstractInstruction *'>
@@ -3469,7 +3464,7 @@ Cogit >> cacheTagIsSelectorForAnnotation: annotation andEntryPoint: entryPoint [
 	"in-line cache tags are selectors on unlinked sends, super sends and megamorphically linked sends"
 	^ entryPoint < methodZoneBase "Unlinked sends"
 	 or: [ (self annotationIsForUncheckedEntryPoint: annotation) "Super sends"
-	 or: [ (self cCoerceSimple: entryPoint - cmEntryOffset to: #'CogMethod *') cmType = CMMegamorphicIC ] ] "Megamorphic sends"
+	 or: [ (self cCoerceSimple: entryPoint - self entryOffset to: #'CogMethod *') cmType = CMMegamorphicIC ] ] "Megamorphic sends"
 ]
 
 { #category : 'debugging' }
@@ -4439,7 +4434,7 @@ Cogit >> cogExtendPIC: aPIC CaseNMethod: caseNMethod tag: caseNTag isMNUCase: is
 					 isMNUCase
 						ifTrue: "this is an MNU so tag the PIC header and setup a jump to the MNUAbort"
 							[aPIC picHasMNUCase: true.
-							 target := self picAbortAddress: aPIC]
+							 target := aPIC asInteger + self picMNUAbortOffset ]
 						ifFalse: "setup a jump to the interpretAbort so we can cog the target method"
 							[target := aPIC asInteger + self picInterpretAbortOffset]].
 
@@ -4564,7 +4559,7 @@ Cogit >> cogMegamorphicICSelector: selector numArgs: numArgs [
 	methodLabel concretizeAt: startAddress.
 	codeSize := self generateInstructionsAt: startAddress + (self sizeof: CogMethod).
 	mapSize := self generateMapAt: startAddress + megamorphicICSize - 1 start: startAddress + cmNoCheckEntryOffset.
-	self assert: entry address - startAddress = cmEntryOffset.
+	self assert: entry address - startAddress = self entryOffset.
 	self assert: (methodZone roundUpLength: (self sizeof: CogMethod) + codeSize) + (methodZone roundUpLength: mapSize) <= megamorphicICSize.
 
 	end := self outputInstructionsAt: startAddress + (self sizeof: CogMethod).
@@ -5193,6 +5188,11 @@ Cogit >> compilePICAbort: numArgs [
 
 	 N.B. This code must match that in compileAbort so that the offset of the return address of
 	 the call is the same in methods and closed PICs."
+	
+	"MNUs are linked through pics that jump to this first instruction.
+	Such linking happens dynamically:
+		when the PIC case is configured, the site is rewritten to jump here instead of jumping to the method
+		See picAbortAddress:, picInterpretAbortOffset and their senders"
 	picMNUAbort := self MoveCq: self isMNUPicAbortDiscriminatorValue R: ClassReg.
 	backEnd hasLinkRegister
 		ifTrue:
@@ -5382,11 +5382,9 @@ Cogit >> computeEntryOffsets [
 	 need cmNoCheckEntryOffset up front to be able to generate the map starting from cmNoCheckEntryOffset"
 	"stack allocate the various collections so that they
 	 are effectively garbage collected on return."
-	| sendMissCall |
-	<var: 'sendMissCall' type: #'AbstractInstruction *'>
 	self allocateOpcodes: 24 bytecodes: 0.
 	methodOrBlockNumArgs := 0.
-	sendMissCall := self compileAbort.
+	self compileAbort.
 	self compileEntry.
 	self computeMaximumSizes.
 	
@@ -5394,8 +5392,7 @@ Cogit >> computeEntryOffsets [
 		self generateInstructionsAt: methodZoneBase + (self sizeof: CogMethod) ].
 	
 	cmEntryOffset := entry address - methodZoneBase.
-	cmNoCheckEntryOffset := noCheckEntry address - methodZoneBase.
-	missOffset := sendMissCall address + sendMissCall machineCodeSize - methodZoneBase
+	cmNoCheckEntryOffset := noCheckEntry address - methodZoneBase
 ]
 
 { #category : 'initialization' }
@@ -5451,7 +5448,7 @@ Cogit >> configureMNUPIC: aPIC methodOperand: methodOop [
 	"set the jump to the case0 method"
 	backEnd
 		rewriteJumpLongAt: aPIC asInteger + firstPICCaseOffset
-		target: (self picAbortAddress: aPIC).
+		target: (aPIC asInteger + self picMNUAbortOffset).
 
 	"finally, rewrite the jump 3 instr before firstPICCaseOffset to jump to the end of case 2, missing the actual case"
 	backEnd
@@ -5497,9 +5494,8 @@ Cogit >> configurePIC: aPIC Case0: case0CogMethod Case1Method: case1Method tag: 
 				           ifTrue: [ 0 ]
 				           ifFalse: [ case1Method ].
 			targetEntry := case1Method
-				               ifNil: [ self picAbortAddress: aPIC ]
-				               ifNotNil: [
-				               aPIC asInteger + self picInterpretAbortOffset ] ].
+				               ifNil: [ aPIC asInteger + self picMNUAbortOffset ]
+				               ifNotNil: [ aPIC asInteger + self picInterpretAbortOffset ] ].
 	"set the jump to the case0 method"
 	backEnd
 		rewriteJumpLongAt: aPIC asInteger + firstPICCaseOffset
@@ -5512,7 +5508,7 @@ Cogit >> configurePIC: aPIC Case0: case0CogMethod Case1Method: case1Method tag: 
 		tag: case1Tag
 		objRef: operand
 		target: (isMNUCase
-				 ifTrue: [ self picAbortAddress: aPIC ]
+				 ifTrue: [ aPIC asInteger + self picMNUAbortOffset ]
 				 ifFalse: [ targetEntry ]) asInteger.
 	^ 0
 ]
@@ -5985,7 +5981,7 @@ Cogit >> fillInMegamorphicICHeader: pic numArgs: numArgs selector: selector [
 	self assert: pic cmType = CMMegamorphicIC.
 	self assert: pic selector = selector.
 	self assert: pic cmNumArgs = numArgs.
-	self assert: (backEnd callTargetFromReturnAddress: pic asInteger + missOffset) = (self picAbortTrampolineFor: numArgs).
+	self assert: (backEnd callTargetFromReturnAddress: pic asInteger + self entryOffset) = (self picAbortTrampolineFor: numArgs).
 	self assert: megamorphicICSize = (methodZone roundUpLength: megamorphicICSize).
 	^pic
 ]
@@ -6026,7 +6022,7 @@ Cogit >> fillInMethodHeader: method size: size selector: selector [
 	method stackCheckOffset: (needsFrame
 								ifTrue: [stackCheckLabel address - method asInteger]
 								ifFalse: [0]).
-	self assert: (backEnd callTargetFromReturnAddress: method asInteger + missOffset)
+	self assert: (backEnd callTargetFromReturnAddress: method asInteger + self entryOffset)
 				= (self methodAbortTrampolineFor: method cmNumArgs).
 	self assert: size = (methodZone roundUpLength: size).
 	^method
@@ -6054,7 +6050,7 @@ Cogit >> fillInPICHeader: pic numArgs: numArgs numCases: numCases hasMNUCase: ha
 	self assert: pic selector = selector.
 	self assert: pic cmNumArgs = numArgs.
 	self assert: pic picNumCases = numCases.
-	self assert: (backEnd callTargetFromReturnAddress: pic asInteger + missOffset) = (self picAbortTrampolineFor: numArgs).
+	self assert: (backEnd callTargetFromReturnAddress: pic asInteger + self entryOffset) = (self picAbortTrampolineFor: numArgs).
 	self assert: picSize = (methodZone roundUpLength: picSize).
 	^pic
 ]
@@ -7341,7 +7337,7 @@ Cogit >> generateCogMethod: selector [
 	startAddress := methodZone allocate: totalSize.
 	startAddress = 0 ifTrue:
 		[^self cCoerceSimple: InsufficientCodeSpace to: #'CogMethod *'].
-	self assert: startAddress + cmEntryOffset = entry address.
+	self assert: startAddress + self entryOffset = entry address.
 	self assert: startAddress + cmNoCheckEntryOffset = noCheckEntry address.
 
 	self 
@@ -7502,21 +7498,22 @@ Cogit >> generateMegamorphicICPrototype [
 	"Need a real selector here so that the map accomodates the annotations for the selector.
 	 Use self numRegArgs to generate the longest possible code sequence due to
 	 genPushRegisterArgsForNumArgs:"
-	self compileMegamorphicIC: (coInterpreter specialSelector: 0) numArgs: self numRegArgs.
+	self
+		compileMegamorphicIC: (coInterpreter specialSelector: 0)
+		numArgs: self numRegArgs.
 	self computeMaximumSizes.
 	methodLabel concretizeAt: methodZoneBase.
 
-	self enableCodeZoneWriteDuring: [	
-		codeSize := self generateInstructionsAt: methodZoneBase + (self sizeof: CogMethod).
-		mapSize := self generateMapAt: nil start: methodZoneBase + cmNoCheckEntryOffset].
-	
-	megamorphicICSize := (methodZone roundUpLength: (self sizeof: CogMethod) + codeSize) + (methodZone roundUpLength: mapSize).
-	"self cCode: ''
-		inSmalltalk:
-			[| end |
-			 end := self outputInstructionsAt: methodZoneBase + headerSize.
-			 self disassembleFrom: methodZoneBase + (self sizeof: CogMethod) to: end - 1.
-			 self halt]"
+	self enableCodeZoneWriteDuring: [
+		codeSize := self generateInstructionsAt:
+			            methodZoneBase + (self sizeof: CogMethod).
+		mapSize := self
+			           generateMapAt: nil
+			           start: methodZoneBase + cmNoCheckEntryOffset ].
+
+	megamorphicICSize := (methodZone roundUpLength:
+		                      (self sizeof: CogMethod) + codeSize)
+	                     + (methodZone roundUpLength: mapSize)
 ]
 
 { #category : 'initialization' }
@@ -7552,8 +7549,15 @@ Cogit >> generatePICPrototype [
 	picCaseSize := endPICCase1 address - endPICCase0 address.
 	picEndSize := picSize - (MaxPICCases - 1 * picCaseSize + firstPICCaseOffset).
 	picSize := methodZone roundUpLength: picSize.
-	self assert: picInterpretAbort address = (methodLabel address + self picInterpretAbortOffset).
 	
+	"Compute the offset from the start of a PIC to the interpreter abort and the MNU abort.
+	These are later used to patch the PICs and let them abort in case of
+	 - linking a PIC to a non-jitted method
+	 - interpret a non-jitted method found in the global cache from a MIC
+	 - linking a PIC to a MNU"
+	picInterpretAbortOffset := picInterpretAbort address - methodLabel address.
+	picMNUAbortOffset := picMNUAbort address - methodLabel address.
+
 	self enableCodeZoneWriteDuring: [
 		self assert: (self expectedPICPrototype: aPIC) = 0.
 	"tpr this is a little tiresome but after any assert checking we need to 0 out the case0 objRef rather than leaving 16r5EAF00D lying around"
@@ -7562,10 +7566,6 @@ Cogit >> generatePICPrototype [
 	"update the methodZoneBase so we keep the prototype around for later use"
 	methodZoneBase := self alignUptoRoutineBoundary: endAddress.
 	picPrototype := aPIC.
-	"self cCode: ''
-		inSmalltalk:
-			[self disassembleFrom: aPIC + (self sizeof: CogMethod) to: aPIC + picSize - 1.
-			 self halt]"
 ]
 
 { #category : 'initialization' }
@@ -8209,7 +8209,7 @@ Cogit >> initializePIC: aPIC atDelta: addrDelta numArgs: numArgs [
 		_: picSize.
 
 	backEnd
-		rewriteCallAt: aPIC asInteger + missOffset
+		rewriteCallAt: aPIC asInteger + self entryOffset
 		target: (self picAbortTrampolineFor: numArgs). "adjust the call at missOffset, the ceAbortXArgs"
 
 	"update the loading of the PIC address"
@@ -8291,13 +8291,6 @@ Cogit >> innermostSubMethodFor: bcpc in: subMethods startingAt: index [
 					ifNotNil: [:innerSubMethod| innerSubMethod]]
 			ifFalse:
 				[self innermostSubMethodFor: bcpc in: subMethods startingAt: index + 1]]
-]
-
-{ #category : 'in-line cacheing' }
-Cogit >> interpretOffset [
-	<api>
-	<cmacro: '() missOffset'>
-	^missOffset
 ]
 
 { #category : 'compile abstract instructions' }
@@ -8476,7 +8469,7 @@ Cogit >> linkSendAt: callSiteReturnAddress in: sendingMethod to: targetMethod of
 	<var: #sendingMethod type: #'CogMethod *'>
 	<var: #targetMethod type: #'CogMethod *'>
 	| inlineCacheTag address extent |
-	self assert: (theEntryOffset = cmEntryOffset or: [theEntryOffset = cmNoCheckEntryOffset]).
+	self assert: (theEntryOffset = self entryOffset or: [theEntryOffset = cmNoCheckEntryOffset]).
 	self assert: (callSiteReturnAddress between: methodZoneBase and: methodZone freeStart).
 	inlineCacheTag := theEntryOffset = cmNoCheckEntryOffset
 						ifTrue: [targetMethod selector "i.e. no change"]
@@ -9703,18 +9696,6 @@ Cogit >> minCogMethodAddress [
 	^methodZoneBase
 ]
 
-{ #category : 'accessing' }
-Cogit >> missOffset [
-	<doNotGenerate>
-	^ missOffset
-]
-
-{ #category : 'in-line cacheing' }
-Cogit >> mnuOffset [
-	<api>
-	^missOffset
-]
-
 { #category : 'compile abstract instructions' }
 Cogit >> needsFrameIfImmutability: stackDelta [
 	^ IMMUTABILITY
@@ -9847,7 +9828,7 @@ Cogit >> offsetAndSendTableFor: entryPoint annotation: annotation into: binaryBl
 	| offset sendTable |
 	<var: #sendTable type: #'sqInt *'>
 	annotation = IsSendCall ifTrue:
-		[offset := cmEntryOffset.
+		[offset := self entryOffset.
 		 sendTable := ordinarySendTrampolines] ifFalse:
 	[(BytecodeSetHasDirectedSuperSend and: [annotation = IsDirectedSuperSend]) ifTrue:
 		[offset := cmNoCheckEntryOffset.
@@ -9956,7 +9937,7 @@ Cogit >> patchToMegamorphicICFor: selector numArgs: numArgs receiver: receiver [
 					tag: (self inlineCacheValueForSelector: selector
 							  in: coInterpreter mframeHomeMethodExport
 							  at: callerReturnAddress)
-					target: oPIC asInteger + cmEntryOffset]
+					target: oPIC asInteger + self entryOffset]
 		flushingCacheWith: [ 
 			self
 				flushICacheFrom: callerReturnAddress asUnsignedInteger - extent to: callerReturnAddress asUnsignedInteger ].
@@ -10107,10 +10088,15 @@ Cogit >> picI: aPIC hasTarget: targetMethod [
 { #category : 'debugging' }
 Cogit >> picInterpretAbortOffset [
 	"Answer the start of the abort sequence for invoking the interpreter in a closed PIC."
-	^self interpretOffset
-	 - (backEnd hasLinkRegister
-		ifTrue: [backEnd pushLinkRegisterByteSize + backEnd callInstructionByteSize]
-		ifFalse: [backEnd callInstructionByteSize])
+
+	^ picInterpretAbortOffset
+]
+
+{ #category : 'debugging' }
+Cogit >> picMNUAbortOffset [
+	"Answer the start of the abort sequence for invoking the MNU handler in an IC"
+
+	^ picMNUAbortOffset
 ]
 
 { #category : 'accessing' }
@@ -10793,11 +10779,11 @@ Cogit >> relocateCallsAndSelfReferencesInMethod: cogMethod [
 	callDelta := backEnd zoneCallsAreRelative ifTrue: [refDelta] ifFalse: [0].
 	
 	self assert: (cogMethod cmType = CMMethod or: [cogMethod cmType = CMMegamorphicIC]).
-	self assert: (backEnd callTargetFromReturnAddress: cogMethod asInteger + missOffset)
+	self assert: (backEnd callTargetFromReturnAddress: cogMethod asInteger + self entryOffset)
 				= (cogMethod cmType = CMMethod
 					ifTrue: [self methodAbortTrampolineFor: cogMethod cmNumArgs]
 					ifFalse: [self picAbortTrampolineFor: cogMethod cmNumArgs]).
-	backEnd relocateCallBeforeReturnPC: cogMethod asInteger + missOffset by: callDelta negated.
+	backEnd relocateCallBeforeReturnPC: cogMethod asInteger + self entryOffset by: callDelta negated.
 	self mapFor: cogMethod
 		performUntil: #relocateIfCallOrMethodReference:mcpc:delta:
 		arg: refDelta
@@ -10812,9 +10798,9 @@ Cogit >> relocateCallsInPIC: aPIC [
 	refDelta := aPIC objectHeader.
 	callDelta := backEnd zoneCallsAreRelative ifTrue: [refDelta] ifFalse: [0].
 	
-	self assert: (backEnd callTargetFromReturnAddress: aPIC asInteger + missOffset)
+	self assert: (backEnd callTargetFromReturnAddress: aPIC asInteger + self entryOffset)
 					= (self picAbortTrampolineFor: aPIC cmNumArgs).
-	backEnd relocateCallBeforeReturnPC: aPIC asInteger + missOffset by: callDelta negated.
+	backEnd relocateCallBeforeReturnPC: aPIC asInteger + self entryOffset by: callDelta negated.
 
 	pc := aPIC asInteger + firstPICCaseOffset.
 	1 to: aPIC picNumCases do:
@@ -11595,16 +11581,6 @@ Cogit >> targetMethodAndSendTableFor: entryPoint annotation: annotation into: bi
 				                 cCoerceSimple: entryPoint - offset
 				                 to: #'CogMethod *'.
 			binaryBlock value: targetCogCode value: sendTable ]
-]
-
-{ #category : 'debugging' }
-Cogit >> traceLinkedSendOffset [
-	<api>
-	^cmNoCheckEntryOffset
-	 + backEnd callInstructionByteSize
-	 + (backEnd hasLinkRegister
-		ifTrue: [backEnd pushLinkRegisterByteSize]
-		ifFalse: [0])
 ]
 
 { #category : 'debugging' }

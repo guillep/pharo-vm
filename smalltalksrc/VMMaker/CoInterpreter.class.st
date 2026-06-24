@@ -1203,25 +1203,28 @@ CoInterpreter >> ceCounterTripped: condition [
 
 { #category : 'trampolines' }
 CoInterpreter >> ceInterpretMethodFromPIC: aMethodObj receiver: rcvr [
+
 	<api>
-	| pic primitiveIndex |
 	<var: #pic type: #'CogMethod *'>
+	| pic primitiveIndex |
+	pic := self cCoerceSimple: self popMachineCodeStub to: #'CogMethod *'.
 	"pop off inner return and locate open or closed PIC"
-	pic := self cCoerceSimple: self popStack - cogit interpretOffset to: #'CogMethod *'.
-	self assert: (pic cmType = CMMegamorphicIC or: [pic cmType = CMPolymorphicIC]).
+	self assert:
+		(pic cmType = CMMegamorphicIC or: [ pic cmType = CMPolymorphicIC ]).
 	"If found from an open PIC then it must be an uncogged method and, since it's been found
 	 in the method cache, should be cogged if possible.  If found from a closed PIC then at the
 	 time the closed PIC was created the method was uncoggable, either because there was
 	 no space, it had too many literals or it contained an illegal bytecode).  So don't try and cog
 	 it, but subsequently it may have been cogged via another path.  If the method is, or ends up
 	 cogged, jump to machine code, otherwise interpret."
-	pic cmType = CMMegamorphicIC ifTrue:
-		[self assert: (self methodHasCogMethod: aMethodObj) not.
-		 cogit cogMethodIfPossible: aMethodObj selector: pic selector].
-	(self methodHasCogMethod: aMethodObj) ifTrue:
-		[self executeCogMethod: (self cogMethodOf: aMethodObj)
+	pic cmType = CMMegamorphicIC ifTrue: [
+		self assert: (self methodHasCogMethod: aMethodObj) not.
+		cogit cogMethodIfPossible: aMethodObj selector: pic selector ].
+	(self methodHasCogMethod: aMethodObj) ifTrue: [
+		self
+			executeCogMethod: (self cogMethodOf: aMethodObj)
 			fromUnlinkedSendWithReceiver: rcvr.
-		 self unreachable].
+		self unreachable ].
 	messageSelector := pic selector.
 	newMethod := aMethodObj.
 	primitiveIndex := self primitiveIndexOf: aMethodObj.
@@ -1234,33 +1237,39 @@ CoInterpreter >> ceInterpretMethodFromPIC: aMethodObj receiver: rcvr [
 
 { #category : 'trampolines' }
 CoInterpreter >> ceMNUFromPICMNUMethod: aMethodObj receiver: rcvr [
+
 	<api>
-	| aPIC primitiveIndex |
 	<var: #aPIC type: #'CogMethod *'>
+	| aPIC primitiveIndex |
 	self assert: (objectMemory addressCouldBeOop: rcvr).
-	self assert: (aMethodObj = 0
-				or: [(objectMemory addressCouldBeObj: aMethodObj)
-					and: [objectMemory isOopCompiledMethod: aMethodObj]]).
-	aPIC := self cCoerceSimple: self popStack - cogit mnuOffset to: #'CogMethod *'.
-	self assert: (aPIC cmType = CMPolymorphicIC or: [aPIC cmType = CMMegamorphicIC]).
+	self assert: (aMethodObj = 0 or: [
+			 (objectMemory addressCouldBeObj: aMethodObj) and: [
+				 objectMemory isOopCompiledMethod: aMethodObj ] ]).
+	aPIC := self
+		        cCoerceSimple: self popMachineCodeStub
+		        to: #'CogMethod *'.
+	self assert:
+		(aPIC cmType = CMPolymorphicIC or: [ aPIC cmType = CMMegamorphicIC ]).
 	argumentCount := aPIC cmNumArgs.
 	messageSelector := aPIC selector.
-	aMethodObj ~= 0 ifTrue:
-		[instructionPointer := self popStack.
+	aMethodObj ~= 0 ifTrue: [
+		instructionPointer := self popStack.
 		self createActualMessageTo: (objectMemory fetchClassOf: rcvr).
-		(self maybeMethodHasCogMethod: aMethodObj) ifTrue:
-			[self push: instructionPointer.
-			 self executeCogMethod: (self cogMethodOf: aMethodObj)
-				 fromUnlinkedSendWithReceiver: rcvr.
-			 self unreachable].
+		(self maybeMethodHasCogMethod: aMethodObj) ifTrue: [
+			self push: instructionPointer.
+			self
+				executeCogMethod: (self cogMethodOf: aMethodObj)
+				fromUnlinkedSendWithReceiver: rcvr.
+			self unreachable ].
 		newMethod := aMethodObj.
 		primitiveIndex := self primitiveIndexOf: aMethodObj.
 		primitiveFunctionPointer := self functionPointerFor: primitiveIndex.
-		^self interpretMethodFromMachineCode].
+		^ self interpretMethodFromMachineCode ].
 	"handleMNU:InMachineCodeTo:classForMessage: assumes lkupClass is set, since every other use is
 	 after a lookupMethodNoMNUEtcInClass: call, which sets lkupClass.  Here we must set it manually.
 	 Global variables.  Bah!"
-	self handleMNU: SelectorDoesNotUnderstand
+	self
+		handleMNU: SelectorDoesNotUnderstand
 		InMachineCodeTo: rcvr
 		classForMessage: (lkupClass := objectMemory fetchClassOf: rcvr).
 	self unreachable
@@ -1710,19 +1719,27 @@ CoInterpreter >> ceStackOverflow: contextSwitchIfNotNil [
 	 In a normal method contextSwitchIfNotNil will be the method (see e.g.
 	 SimpleStackBasedCogit>>compileFrameBuild).  In a block it will be the
 	 closure (see e.g. SimpleStackBasedCogit>>compileMethodBody)."
+
 	<api>
-	| cogMethod switched cesoRetAddr |
 	<var: #cogMethod type: #'CogMethod *'>
+	| cogMethod switched cesoRetAddr |
 	cesoRetAddr := self popStack. "discard the ceStackOverflow call return address."
 	cogMethod := self mframeCogMethod: framePointer.
-	self assert: cesoRetAddr - cogit abortOffset = cogMethod asInteger.
-	instructionPointer := cogMethod asInteger + cogMethod stackCheckOffset.
-	self assertValidExecutionPointe: instructionPointer r: framePointer s: stackPointer imbar: false line: #'__LINE__'.
+	self assert: (self machineCodeStubFromEntryAddress: cesoRetAddr)
+		= cogMethod asInteger.
+	instructionPointer := cogMethod asInteger
+	                      + cogMethod stackCheckOffset.
+	self
+		assertValidExecutionPointe: instructionPointer
+		r: framePointer
+		s: stackPointer
+		imbar: false
+		line: #__LINE__.
 	method := newMethod := messageSelector := objectMemory nilObject.
-	switched := self handleStackOverflowOrEventAllowContextSwitch: contextSwitchIfNotNil ~= 0.
+	switched := self handleStackOverflowOrEventAllowContextSwitch:
+		            contextSwitchIfNotNil ~= 0.
 	self returnToExecutive: false postContextSwitch: switched.
 	self error: 'should not be reached'
-
 ]
 
 { #category : 'debug support' }
@@ -1738,33 +1755,6 @@ CoInterpreter >> ceTraceBlockActivation [
 				isBlock: true
 				firstTemporary: nil.
 			 self cr]]
-]
-
-{ #category : 'debug support' }
-CoInterpreter >> ceTraceLinkedSend: theReceiver [
-	| cogMethod |
-	<api>
-	<var: #cogMethod type: #'CogMethod *'>
-	cogMethod := self cCoerceSimple: (self stackTop - cogit traceLinkedSendOffset)
-						to: #'CogMethod *'.
-	self cCode: [] inSmalltalk:
-		[cogit checkStackDepthOnSend ifTrue:
-			[self maybeCheckStackDepth: (cogMethod cmNumArgs > cogit numRegArgs
-											ifTrue: [cogMethod cmNumArgs + 1]
-											ifFalse: [0])
-				sp: stackPointer + objectMemory wordSize
-				pc: (self stackValue: 1)]].
-	"cogit recordSendTrace ifTrue: is implicit; wouldn't compile the call otherwise."
-	self recordTrace: (objectMemory fetchClassOf: theReceiver)
-		thing: cogMethod selector
-		source: TraceIsFromMachineCode.
-	cogit printOnTrace ifTrue:
-		[self printActivationNameFor: cogMethod methodObject
-			receiver: theReceiver
-			isBlock: false
-			firstTemporary: (self cCode: [nil] inSmalltalk: [0]);
-			cr].
-	self sendBreakpoint: cogMethod selector receiver: theReceiver
 ]
 
 { #category : 'trampolines' }
@@ -3370,6 +3360,16 @@ CoInterpreter >> mMethodClass [
 	^self methodClassOf: (self mframeHomeMethod: framePointer) methodObject
 ]
 
+{ #category : 'trampolines' }
+CoInterpreter >> machineCodeStubFromEntryAddress: cesoRetAddr [
+
+	"The top of the stack is the address following the CALL instruction that led to an abort trampoline.
+	That address is inside a method or IC stub and is just at the same address than the entry point.
+	Thus, subtract the entryOffset from it to get the stub"
+
+	^ cesoRetAddr - cogit entryOffset
+]
+
 { #category : 'object memory support' }
 CoInterpreter >> mapMachineCode: theGCMode [
 	<inline: true>
@@ -3974,6 +3974,16 @@ CoInterpreter >> noAssertHeaderOf: methodPointer [
 	^(self isCogMethodReference: methodHeader)
 		ifTrue: [(self cCoerceSimple: methodHeader to: #'CogMethod *') methodHeader]
 		ifFalse: [methodHeader]
+]
+
+{ #category : 'trampolines' }
+CoInterpreter >> popMachineCodeStub [
+	"
+	Return the machine code stub or method that corresponds the the address on top of the stack.
+	Pop the address.
+	Return a pointer to the stub"
+
+	^ self machineCodeStubFromEntryAddress: self popStack
 ]
 
 { #category : 'object memory support' }
