@@ -3978,11 +3978,11 @@ CoInterpreter >> noAssertHeaderOf: methodPointer [
 
 { #category : 'trampolines' }
 CoInterpreter >> popMachineCodeStub [
-	"
-	Return the machine code stub or method that corresponds the the address on top of the stack.
+	"Return the machine code stub or method that corresponds the the address on top of the stack.
 	Pop the address.
 	Return a pointer to the stub"
 
+	<api>
 	^ self machineCodeStubFromEntryAddress: self popStack
 ]
 
